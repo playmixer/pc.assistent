@@ -1,3 +1,3 @@
-module smart-listener/pkg/logger
+module logger
 
 go 1.20
