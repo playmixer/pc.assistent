@@ -1,0 +1,7 @@
+version: '3'
+
+services:
+  vosk-server:
+    build: .
+    ports:
+      - "2700:2700"    
