@@ -153,7 +153,7 @@ func (l *Listener) Start(ctx context.Context) {
 
 				//отрезаем кусок по команде
 			case <-l.sliceCh:
-				l.log.INFO("listener", "slice record")
+				l.log.DEBUG("listener", "slice record")
 				l.log.DEBUG("step...")
 				outputWav.Close()
 				outputFile.Close()
