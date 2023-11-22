@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"strconv"
+	"sync"
 	"time"
 
 	pvrecorder "github.com/Picovoice/pvrecorder/binding/go"
@@ -33,6 +34,7 @@ type Listener struct {
 	IsActive   bool
 	StartTime  time.Time
 	sliceCh    chan int
+	sync.Mutex
 }
 
 func New(t time.Duration) *Listener {
@@ -58,6 +60,8 @@ func (l *Listener) Stop() {
 	}
 	l.log.DEBUG("Stop")
 	close(l.stopCh)
+	l.Lock()
+	defer l.Unlock()
 	l.IsActive = false
 }
 
@@ -71,7 +75,9 @@ func (l *Listener) Start(ctx context.Context) {
 			return
 		}
 		l.StartTime = time.Now()
+		l.Lock()
 		l.IsActive = true
+		l.Unlock()
 		l.stopCh = make(chan struct{})
 		// l.WavCh = make(chan []byte, 1)
 		showAudioDevices := false
@@ -139,7 +145,7 @@ func (l *Listener) Start(ctx context.Context) {
 				l.WavCh <- outputFile.buf.Bytes()
 				break waitLoop
 
-				//отрезаем по таймауту
+			//отрезаем по таймауту
 			case <-delay.C:
 				l.log.DEBUG("step...")
 				outputWav.Close()
@@ -151,7 +157,7 @@ func (l *Listener) Start(ctx context.Context) {
 				outputWav = wav.NewEncoder(outputFile, pvrecorder.SampleRate, 16, 1, 1)
 				l.log.DEBUG("...stop step")
 
-				//отрезаем кусок по команде
+			//отрезаем кусок по команде
 			case <-l.sliceCh:
 				l.log.DEBUG("listener", "slice record")
 				l.log.DEBUG("step...")
@@ -165,7 +171,6 @@ func (l *Listener) Start(ctx context.Context) {
 				l.log.DEBUG("...stop step")
 
 			default:
-				// l.log.DEBUG("record read")
 				pcm, err := recorder.Read()
 				if err != nil {
 					l.log.ERROR(fmt.Sprintf("Error: %s.\n", err.Error()))
