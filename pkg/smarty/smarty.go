@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"pc.assistent/pkg/listen"
+	"github.com/playmixer/pc.assistent/pkg/listen"
 
 	ls "github.com/texttheater/golang-levenshtein/levenshtein"
 )

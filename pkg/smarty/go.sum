@@ -1,0 +1,12 @@
+github.com/Picovoice/pvrecorder/binding/go v1.2.1 h1:p99fkYMFbTS4g4WwbhSPkT9PHvlEoVYGaNoqxCITiEo=
+github.com/Picovoice/pvrecorder/binding/go v1.2.1/go.mod h1:gQdvBAjoKmRxMFh8W9cVKWcqHsWvu+d13sCPVFm7dhg=
+github.com/go-audio/audio v1.0.0 h1:zS9vebldgbQqktK4H0lUqWrG8P0NxCJVqcj7ZpNnwd4=
+github.com/go-audio/audio v1.0.0/go.mod h1:6uAu0+H2lHkwdGsAY+j2wHPNPpPoeg5AaEFh9FlA+Zs=
+github.com/go-audio/riff v1.0.0 h1:d8iCGbDvox9BfLagY94fBynxSPHO80LmZCaOsmKxokA=
+github.com/go-audio/riff v1.0.0/go.mod h1:l3cQwc85y79NQFCRB7TiPoNiaijp6q8Z0Uv38rVG498=
+github.com/go-audio/wav v1.1.0 h1:jQgLtbqBzY7G+BM8fXF7AHUk1uHUviWS4X39d5rsL2g=
+github.com/go-audio/wav v1.1.0/go.mod h1:mpe9qfwbScEbkd8uybLuIpTgHyrISw/OTuvjUW2iGtE=
+github.com/playmixer/pc.assistent/pkg/listen v0.0.0-20231122124353-b0b136ba5e0a h1:MqvQonyVJF/7GVbtLHc2gDCgJQTXr3Von6M4Cgbog+4=
+github.com/playmixer/pc.assistent/pkg/listen v0.0.0-20231122124353-b0b136ba5e0a/go.mod h1:obxHR4Dz9WKTO/SM0IChrmC+Cy1W29ni0+7R7uXyToM=
+github.com/texttheater/golang-levenshtein/levenshtein v0.0.0-20200805054039-cae8b0eaed6c h1:HelZ2kAFadG0La9d+4htN4HzQ68Bm2iM9qKMSMES6xg=
+github.com/texttheater/golang-levenshtein/levenshtein v0.0.0-20200805054039-cae8b0eaed6c/go.mod h1:JlzghshsemAMDGZLytTFY8C1JQxQPhnatWqNwUXjggo=
