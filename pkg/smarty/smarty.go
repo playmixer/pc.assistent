@@ -10,9 +10,8 @@ import (
 	"syscall"
 	"time"
 
+	fuzzy "github.com/paul-mannino/go-fuzzywuzzy"
 	"github.com/playmixer/pc.assistent/pkg/listen"
-
-	ls "github.com/texttheater/golang-levenshtein/levenshtein"
 )
 
 type AssiserEvent int
@@ -62,18 +61,16 @@ func (lm *listenMessage) IsActualMessage(m string, d time.Duration) bool {
 	return false
 }
 
-func inCmd(cmd string, cArray []string) bool {
+func InCmd(cmd string, cArray []string) bool {
+
 	for _, c := range cArray {
-		if d := cmdDistance(c, cmd); d == 0 {
-			fmt.Println(c, cmd, "distance", d)
+		d := fuzzy.TokenSetRatio(c, cmd)
+		fmt.Println(c, cmd, "distance", d)
+		if d == 100 {
 			return true
 		}
 	}
 	return false
-}
-
-func cmdDistance(t1, t2 string) int {
-	return ls.DistanceForStrings([]rune(t1), []rune(t2), ls.DefaultOptions)
 }
 
 func any2ChanResult(ctx context.Context, c1 chan []byte, c2 chan []byte) chan []byte {
@@ -149,22 +146,40 @@ func (a *Assiser) AddCommand(cmd []string, f CommandFunc) {
 }
 
 func (a *Assiser) runCommand(cmd string) {
-	for i, command := range a.commands {
-		if inCmd(cmd, a.commands[i].Commands) {
-			a.log.INFO("Run command", cmd)
-			ctx, cancel := context.WithCancel(context.Background())
-			a.commands[i].Context = ctx
-			a.commands[i].Cancel = cancel
-			go func() {
-				a.commands[i].IsActive = true
-				command.Func(ctx, a)
-				a.commands[i].IsActive = false
-				a.commands[i].Cancel()
-			}()
-			break
-		}
+	i, percent := a.RotateCommand(cmd)
+	if percent == 100 {
+		a.log.INFO("Run command", cmd)
+		ctx, cancel := context.WithCancel(context.Background())
+		a.commands[i].Context = ctx
+		a.commands[i].Cancel = cancel
+		go func() {
+			a.commands[i].IsActive = true
+			a.commands[i].Func(ctx, a)
+			a.commands[i].IsActive = false
+			a.commands[i].Cancel()
+		}()
 	}
 
+}
+
+func (a *Assiser) RotateCommand(cmd string) (index int, percent int) {
+	var idx int = 0
+	percent = 0
+	var founded bool = false
+	for i, command := range a.commands {
+		for _, c := range command.Commands {
+			p := fuzzy.TokenSetRatio(cmd, c)
+			if p > percent {
+				idx, percent = i, p
+				founded = true
+			}
+		}
+	}
+	if !founded {
+		return 0, 0
+	}
+
+	return idx, percent
 }
 
 func (a *Assiser) SetConfig(cfg Config) {

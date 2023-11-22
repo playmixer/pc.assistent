@@ -12,4 +12,5 @@ require (
 	github.com/go-audio/audio v1.0.0 // indirect
 	github.com/go-audio/riff v1.0.0 // indirect
 	github.com/go-audio/wav v1.1.0 // indirect
+	github.com/paul-mannino/go-fuzzywuzzy v0.0.0-20200127021948-54652b135d0e // indirect
 )
