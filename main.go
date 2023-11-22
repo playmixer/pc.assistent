@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"pc.assistent/internal/sayme"
-	"pc.assistent/pkg/smarty"
 
 	"github.com/playmixer/pc.assistent/pkg/logger"
+	"github.com/playmixer/pc.assistent/pkg/smarty"
 	voskclient "github.com/playmixer/pc.assistent/pkg/vosk-client"
 
 	"github.com/joho/godotenv"

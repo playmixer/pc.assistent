@@ -29,13 +29,15 @@ github.com/lucasb-eyer/go-colorful v1.0.2/go.mod h1:0MS4r+7BZKSJ5mw4/S5MPN+qHFF1
 github.com/mattn/go-runewidth v0.0.4/go.mod h1:LwmH8dsx7+W8Uxz3IHJYH5QSwggIsqBzpuz5H//U1FU=
 github.com/mewkiz/flac v1.0.7/go.mod h1:yU74UH277dBUpqxPouHSQIar3G1X/QIclVbFahSd1pU=
 github.com/mewkiz/pkg v0.0.0-20190919212034-518ade7978e2/go.mod h1:3E2FUC/qYUfM8+r9zAwpeHJzqRVVMIYnpzD/clwWxyA=
-github.com/paul-mannino/go-fuzzywuzzy v0.0.0-20200127021948-54652b135d0e h1:UMX/0xkc/jcivgGjoBumSA1YwxT3eq6rYeWOOEuPU38=
-github.com/paul-mannino/go-fuzzywuzzy v0.0.0-20200127021948-54652b135d0e/go.mod h1:AMWhKRluACdXhJMWJiVOuqwmZvJOcdmjgbla/9zOKzE=
 github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
+github.com/playmixer/pc.assistent/pkg/listen v0.0.0-20231122124353-b0b136ba5e0a h1:MqvQonyVJF/7GVbtLHc2gDCgJQTXr3Von6M4Cgbog+4=
+github.com/playmixer/pc.assistent/pkg/listen v0.0.0-20231122124353-b0b136ba5e0a/go.mod h1:obxHR4Dz9WKTO/SM0IChrmC+Cy1W29ni0+7R7uXyToM=
 github.com/playmixer/pc.assistent/pkg/logger v0.0.0-20231112063147-c320cefa212b h1:ATD4L+KtQzltgKsLs4+/+5U6Sg1WnHyL2toogbqVOak=
 github.com/playmixer/pc.assistent/pkg/logger v0.0.0-20231112063147-c320cefa212b/go.mod h1:NhJS7DmfpAJHkhnsqnT+H0akv1bOoaZidVhhaADZLt8=
+github.com/playmixer/pc.assistent/pkg/smarty v0.0.0-20231122124643-8d8c6028ac08 h1:gE7iRZhvkyOS3MBD1t97lt6MCNmXSM1j8o9a56AxWo0=
+github.com/playmixer/pc.assistent/pkg/smarty v0.0.0-20231122124643-8d8c6028ac08/go.mod h1:UgW6thKbHBQOskfwOL02FlorVRwF1GdOkgBvqLYpWJQ=
 github.com/playmixer/pc.assistent/pkg/vosk-client v0.0.0-20231112065738-0bd81a984c71 h1:Zx1fJMSgooGlfddslK/ijyHEyzqiUl0JipajIx4q4ws=
 github.com/playmixer/pc.assistent/pkg/vosk-client v0.0.0-20231112065738-0bd81a984c71/go.mod h1:IXKVVeYiWmzTYAlklLPsciUlcv8RVQbAoxgFgXe/8w0=
 github.com/texttheater/golang-levenshtein/levenshtein v0.0.0-20200805054039-cae8b0eaed6c h1:HelZ2kAFadG0La9d+4htN4HzQ68Bm2iM9qKMSMES6xg=
