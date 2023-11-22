@@ -305,9 +305,11 @@ waitFor:
 						rCheckCommand.Stop()
 						rCommand.Stop()
 						a.PostSiglanEvent(AEStartListeningName)
-						r1.Start(ctx)
-						time.Sleep(a.ListenNameTimeout)
-						r2.Start(ctx)
+						go func() {
+							r1.Start(ctx)
+							time.Sleep(a.ListenNameTimeout / 2)
+							r2.Start(ctx)
+						}()
 					}
 				}
 			}
