@@ -12,8 +12,6 @@ import (
 
 	"pc.assistent/pkg/listen"
 
-	voskclient "github.com/playmixer/pc.assistent/pkg/vosk-client"
-
 	ls "github.com/texttheater/golang-levenshtein/levenshtein"
 )
 
@@ -112,6 +110,10 @@ type Config struct {
 	ListenCommandTimeout time.Duration
 }
 
+type IReacognize interface {
+	Recognize(bufWav []byte) (string, error)
+}
+
 type Assiser struct {
 	ctx                  context.Context
 	log                  iLogger
@@ -120,18 +122,20 @@ type Assiser struct {
 	ListenCommandTimeout time.Duration
 	commands             []CommandStruct
 	eventChan            chan AssiserEvent
+	recognize            IReacognize
 }
 
-func New(ctx context.Context) *Assiser {
+func New(ctx context.Context, recognize IReacognize) *Assiser {
 
 	a := &Assiser{
 		log:                  &logger{},
 		ctx:                  ctx,
-		Names:                []string{"альфа", "бета", "бэта"},
+		Names:                []string{"альфа", "alpha"},
 		ListenNameTimeout:    time.Second * 2,
 		ListenCommandTimeout: time.Second * 6,
 		commands:             make([]CommandStruct, 0),
 		eventChan:            make(chan AssiserEvent, 1),
+		recognize:            recognize,
 	}
 
 	return a
@@ -199,26 +203,24 @@ func (a *Assiser) Start() {
 	// слушаем имя 2ой поток
 	defer r2.Stop()
 
-	// слушает только когда назвали имя 1ый поток
+	// слушает только команду 1ый поток
 	log.INFO("Initilize listen command. Stram #1 ")
-	rCom1 := listen.New(a.ListenCommandTimeout)
-	rCom1.SetLogger(log)
-	defer rCom1.Stop()
+	rCheckCommand := listen.New(time.Second)
+	rCheckCommand.SetLogger(log)
+	defer rCheckCommand.Stop()
 
-	// слушает только когда назвали имя 2ой поток
+	// слушает только команду 2ой поток
 	log.INFO("Initilize listen command. Stram #2 ")
-	rCom2 := listen.New(a.ListenCommandTimeout)
-	rCom2.SetLogger(log)
-	defer rCom2.Stop()
-
-	recognize := voskclient.New(log)
+	rCommand := listen.New(time.Minute)
+	rCommand.SetLogger(log)
+	defer rCommand.Stop()
 
 	var lastMessage = listenMessage{
 		t: time.Now(),
 	}
 
 	listenName := any2ChanResult(ctx, r1.WavCh, r2.WavCh)
-	listenCommand := any2ChanResult(ctx, rCom1.WavCh, rCom2.WavCh)
+	// listenCommand := any2ChanResult(ctx, rCom1.WavCh, rCom2.WavCh)
 
 	a.AddCommand([]string{"стоп", "stop"}, func(ctx context.Context, a *Assiser) {
 		for i := range a.commands {
@@ -240,7 +242,7 @@ waitFor:
 			break waitFor
 		//слушаем имя
 		case s := <-listenName:
-			txt, err := recognize.Recognize(s)
+			txt, err := a.recognize.Recognize(s)
 			if err != nil {
 				log.ERROR(err.Error())
 			}
@@ -257,11 +259,8 @@ waitFor:
 						if !lastMessage.IsActualMessage(txt, a.ListenNameTimeout) {
 							log.DEBUG("Start listen command")
 							a.PostSiglanEvent(AEStartListening)
-							rCom1.Start(ctx)
-							go func() {
-								time.Sleep(a.ListenCommandTimeout / 2)
-								rCom2.Start(ctx)
-							}()
+							rCheckCommand.Start(ctx)
+							rCommand.Start(ctx)
 						}
 						break
 					}
@@ -269,9 +268,22 @@ waitFor:
 				lastMessage.SetMessage(txt)
 			}
 
+		//проверяем есть ли продолжение команды
+		case ct := <-rCheckCommand.WavCh:
+			txt, err := a.recognize.Recognize(ct)
+			if err != nil {
+				log.ERROR(err.Error())
+			}
+
+			log.DEBUG("check command: ", txt)
+			//проверяем было ли что то сказано
+			if txt == "" {
+				rCommand.SliceRecod()
+			}
+
 		//слушаем команду
-		case com := <-listenCommand:
-			txt, err := recognize.Recognize(com)
+		case com := <-rCommand.WavCh:
+			txt, err := a.recognize.Recognize(com)
 			if err != nil {
 				log.ERROR(err.Error())
 			}
@@ -282,12 +294,12 @@ waitFor:
 				}
 				lastMessage.SetMessage(txt)
 			} else {
-				if rCom1.IsActive || rCom2.IsActive {
+				if rCheckCommand.IsActive || rCommand.IsActive {
 					if time.Since(lastMessage.t) > a.ListenCommandTimeout {
 						a.PostSiglanEvent(AEStopListening)
 						log.DEBUG("Stop listen command")
-						rCom1.Stop()
-						rCom2.Stop()
+						rCheckCommand.Stop()
+						rCommand.Stop()
 						a.PostSiglanEvent(AEStartListeningName)
 						r1.Start(ctx)
 						time.Sleep(a.ListenNameTimeout)

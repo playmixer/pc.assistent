@@ -32,6 +32,7 @@ type Listener struct {
 	log        logger
 	IsActive   bool
 	StartTime  time.Time
+	sliceCh    chan int
 }
 
 func New(t time.Duration) *Listener {
@@ -43,6 +44,7 @@ func New(t time.Duration) *Listener {
 		Filename:   "",
 		stopCh:     make(chan struct{}),
 		WavCh:      make(chan []byte, 1),
+		sliceCh:    make(chan int, 1),
 	}
 }
 
@@ -57,6 +59,10 @@ func (l *Listener) Stop() {
 	l.log.DEBUG("Stop")
 	close(l.stopCh)
 	l.IsActive = false
+}
+
+func (l *Listener) SliceRecod() {
+	l.sliceCh <- 1
 }
 
 func (l *Listener) Start(ctx context.Context) {
@@ -133,7 +139,21 @@ func (l *Listener) Start(ctx context.Context) {
 				l.WavCh <- outputFile.buf.Bytes()
 				break waitLoop
 
+				//отрезаем по таймауту
 			case <-delay.C:
+				l.log.DEBUG("step...")
+				outputWav.Close()
+				outputFile.Close()
+				l.log.DEBUG("step 1...", "size buf", strconv.Itoa(outputFile.buf.Len()))
+				l.WavCh <- outputFile.buf.Bytes()
+				l.log.DEBUG("step 2...")
+				outputFile = &WriterSeeker{}
+				outputWav = wav.NewEncoder(outputFile, pvrecorder.SampleRate, 16, 1, 1)
+				l.log.DEBUG("...stop step")
+
+				//отрезаем кусок по команде
+			case <-l.sliceCh:
+				l.log.INFO("listener", "slice record")
 				l.log.DEBUG("step...")
 				outputWav.Close()
 				outputFile.Close()
