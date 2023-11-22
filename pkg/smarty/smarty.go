@@ -61,18 +61,6 @@ func (lm *listenMessage) IsActualMessage(m string, d time.Duration) bool {
 	return false
 }
 
-func InCmd(cmd string, cArray []string) bool {
-
-	for _, c := range cArray {
-		d := fuzzy.TokenSetRatio(c, cmd)
-		fmt.Println(c, cmd, "distance", d)
-		if d == 100 {
-			return true
-		}
-	}
-	return false
-}
-
 func any2ChanResult(ctx context.Context, c1 chan []byte, c2 chan []byte) chan []byte {
 	result := make(chan []byte, 1)
 	go func() {
@@ -147,6 +135,7 @@ func (a *Assiser) AddCommand(cmd []string, f CommandFunc) {
 
 func (a *Assiser) runCommand(cmd string) {
 	i, percent := a.RotateCommand(cmd)
+	a.log.INFO("rotate command", cmd, string(i), string(percent))
 	if percent == 100 {
 		a.log.INFO("Run command", cmd)
 		ctx, cancel := context.WithCancel(context.Background())

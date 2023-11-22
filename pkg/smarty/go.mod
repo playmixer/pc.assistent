@@ -3,7 +3,7 @@ module github.com/playmixer/pc.assistent/pkg/smarty
 go 1.20
 
 require (
-	github.com/playmixer/pc.assistent/pkg/listen v0.0.0-20231122124353-b0b136ba5e0a
+	github.com/playmixer/pc.assistent/pkg/listen v0.0.0-20231122142733-26c7831c8b60
 	github.com/texttheater/golang-levenshtein/levenshtein v0.0.0-20200805054039-cae8b0eaed6c
 )
 

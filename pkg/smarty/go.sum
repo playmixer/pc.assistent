@@ -10,5 +10,7 @@ github.com/paul-mannino/go-fuzzywuzzy v0.0.0-20200127021948-54652b135d0e h1:UMX/
 github.com/paul-mannino/go-fuzzywuzzy v0.0.0-20200127021948-54652b135d0e/go.mod h1:AMWhKRluACdXhJMWJiVOuqwmZvJOcdmjgbla/9zOKzE=
 github.com/playmixer/pc.assistent/pkg/listen v0.0.0-20231122124353-b0b136ba5e0a h1:MqvQonyVJF/7GVbtLHc2gDCgJQTXr3Von6M4Cgbog+4=
 github.com/playmixer/pc.assistent/pkg/listen v0.0.0-20231122124353-b0b136ba5e0a/go.mod h1:obxHR4Dz9WKTO/SM0IChrmC+Cy1W29ni0+7R7uXyToM=
+github.com/playmixer/pc.assistent/pkg/listen v0.0.0-20231122142733-26c7831c8b60 h1:YhPdt8GHMkaSEHG/aAhv/pgC/2m6XlO/gyvblMSPf/w=
+github.com/playmixer/pc.assistent/pkg/listen v0.0.0-20231122142733-26c7831c8b60/go.mod h1:obxHR4Dz9WKTO/SM0IChrmC+Cy1W29ni0+7R7uXyToM=
 github.com/texttheater/golang-levenshtein/levenshtein v0.0.0-20200805054039-cae8b0eaed6c h1:HelZ2kAFadG0La9d+4htN4HzQ68Bm2iM9qKMSMES6xg=
 github.com/texttheater/golang-levenshtein/levenshtein v0.0.0-20200805054039-cae8b0eaed6c/go.mod h1:JlzghshsemAMDGZLytTFY8C1JQxQPhnatWqNwUXjggo=
