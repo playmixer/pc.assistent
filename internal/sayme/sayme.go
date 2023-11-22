@@ -1,7 +1,7 @@
 package sayme
 
 import (
-	"pc.assistent/pkg/wavplayer"
+	"pc.assistent/internal/wavplayer"
 )
 
 const (
