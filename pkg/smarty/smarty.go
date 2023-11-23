@@ -6,7 +6,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -332,9 +331,9 @@ waitFor:
 				}
 			}
 
-		//слушаем событие
-		case e := <-a.GetSignalEvent():
-			log.INFO(strconv.Itoa(int(e)))
+			// //слушаем событие
+			// case e := <-a.GetSignalEvent():
+			// 	log.INFO(strconv.Itoa(int(e)))
 		}
 	}
 }
