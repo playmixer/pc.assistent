@@ -137,12 +137,16 @@ func (l *Listener) Start(ctx context.Context) {
 			select {
 			case <-ctx.Done():
 				l.log.DEBUG("Stopping...")
+				l.Lock()
 				l.WavCh <- outputFile.buf.Bytes()
+				l.Unlock()
 				break waitLoop
 
 			case <-waitCh:
 				l.log.DEBUG("Stopping...")
+				l.Lock()
 				l.WavCh <- outputFile.buf.Bytes()
+				l.Unlock()
 				break waitLoop
 
 			//отрезаем по таймауту
@@ -151,7 +155,9 @@ func (l *Listener) Start(ctx context.Context) {
 				outputWav.Close()
 				outputFile.Close()
 				l.log.DEBUG("step 1...", "size buf", strconv.Itoa(outputFile.buf.Len()))
+				l.Lock()
 				l.WavCh <- outputFile.buf.Bytes()
+				l.Unlock()
 				l.log.DEBUG("step 2...")
 				outputFile = &WriterSeeker{}
 				outputWav = wav.NewEncoder(outputFile, pvrecorder.SampleRate, 16, 1, 1)
@@ -164,7 +170,9 @@ func (l *Listener) Start(ctx context.Context) {
 				outputWav.Close()
 				outputFile.Close()
 				l.log.DEBUG("step 1...", "size buf", strconv.Itoa(outputFile.buf.Len()))
+				l.Lock()
 				l.WavCh <- outputFile.buf.Bytes()
+				l.Unlock()
 				l.log.DEBUG("step 2...")
 				outputFile = &WriterSeeker{}
 				outputWav = wav.NewEncoder(outputFile, pvrecorder.SampleRate, 16, 1, 1)
