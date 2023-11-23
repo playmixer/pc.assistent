@@ -7,11 +7,13 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	fuzzy "github.com/paul-mannino/go-fuzzywuzzy"
 	"github.com/playmixer/pc.assistent/pkg/listen"
+	"golang.org/x/exp/slices"
 )
 
 type AssiserEvent int
@@ -135,7 +137,7 @@ func (a *Assiser) AddCommand(cmd []string, f CommandFunc) {
 
 func (a *Assiser) runCommand(cmd string) {
 	i, percent := a.RotateCommand(cmd)
-	a.log.INFO("rotate command", cmd, string(i), string(percent))
+	a.log.INFO("rotate command", cmd, fmt.Sprint(i), fmt.Sprint(percent))
 	if percent == 100 {
 		a.log.INFO("Run command", cmd)
 		ctx, cancel := context.WithCancel(context.Background())
@@ -151,14 +153,24 @@ func (a *Assiser) runCommand(cmd string) {
 
 }
 
-func (a *Assiser) RotateCommand(cmd string) (index int, percent int) {
+func (a *Assiser) RotateCommand(talk string) (index int, percent int) {
 	var idx int = 0
 	percent = 0
 	var founded bool = false
 	for i, command := range a.commands {
 		for _, c := range command.Commands {
-			p := fuzzy.TokenSetRatio(cmd, c)
-			if p > percent {
+			//проверяем что все слова команды есть в предложении пользователя
+			wordsCommand := strings.Fields(c)
+			wordsTalk := strings.Fields(talk)
+			allWordsInCommand := true
+			for _, word := range wordsCommand {
+				if ok := slices.Contains(wordsTalk, word); !ok {
+					allWordsInCommand = false
+					break
+				}
+			}
+			p := fuzzy.TokenSetRatio(c, talk)
+			if p > percent && allWordsInCommand {
 				idx, percent = i, p
 				founded = true
 			}
