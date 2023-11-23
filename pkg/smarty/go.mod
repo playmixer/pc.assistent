@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/paul-mannino/go-fuzzywuzzy v0.0.0-20200127021948-54652b135d0e
-	github.com/playmixer/pc.assistent/pkg/listen v0.0.0-20231123033212-c2708d2e77fa
+	github.com/playmixer/pc.assistent/pkg/listen v0.0.0-20231123034843-7171f1ea210e
 	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa
 )
 
