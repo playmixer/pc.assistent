@@ -137,7 +137,7 @@ func (a *Assiser) AddCommand(cmd []string, f CommandFunc) {
 
 func (a *Assiser) runCommand(cmd string) {
 	i, percent := a.RotateCommand(cmd)
-	a.log.INFO("rotate command", cmd, fmt.Sprint(i), fmt.Sprint(percent))
+	a.log.DEBUG("rotate command", cmd, fmt.Sprint(i), fmt.Sprint(percent))
 	if percent == 100 {
 		a.log.INFO("Run command", cmd)
 		ctx, cancel := context.WithCancel(context.Background())
