@@ -81,7 +81,13 @@ func (c *Client) PostConfigure() error {
 		return err
 	}
 
-	err = c.socket.WriteMessage(websocket.TextMessage, []byte("{\"eof\" : 1}"))
+	// err = c.socket.WriteMessage(websocket.TextMessage, []byte("{\"eof\" : 1}"))
+	// if err != nil {
+	// 	c.log.ERROR(err.Error())
+	// 	return err
+	// }
+	// Closing websocket connection
+	err = c.socket.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 	if err != nil {
 		c.log.ERROR(err.Error())
 		return err
@@ -103,11 +109,11 @@ func (c *Client) Recognize(bufWav []byte) (string, error) {
 	c.socket = soc
 	defer c.socket.Close()
 
-	// err = soc.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("{\"config\" : { \"sample_rate\" : %v } }", c.SampleRate)))
-	// if err != nil {
-	// 	c.log.ERROR(err.Error())
-	// 	return "", err
-	// }
+	err = soc.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("{\"config\" : { \"sample_rate\" : %v } }", c.SampleRate)))
+	if err != nil {
+		c.log.ERROR(err.Error())
+		return "", err
+	}
 
 	f := bytes.NewReader(bufWav)
 	for {
