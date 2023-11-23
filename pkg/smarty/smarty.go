@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -23,6 +24,7 @@ const (
 	AEStopListening      AssiserEvent = 20
 	AEStartListeningName AssiserEvent = 30
 	AEStopSListeningName AssiserEvent = 40
+	AEApplyCommand       AssiserEvent = 50
 )
 
 type iLogger interface {
@@ -109,7 +111,9 @@ type Assiser struct {
 	ListenCommandTimeout time.Duration
 	commands             []CommandStruct
 	eventChan            chan AssiserEvent
+	eventChanCapNow      int
 	recognize            IReacognize
+	sync.Mutex
 }
 
 func New(ctx context.Context, recognize IReacognize) *Assiser {
@@ -122,6 +126,7 @@ func New(ctx context.Context, recognize IReacognize) *Assiser {
 		ListenCommandTimeout: time.Second * 6,
 		commands:             make([]CommandStruct, 0),
 		eventChan:            make(chan AssiserEvent, 1),
+		eventChanCapNow:      0,
 		recognize:            recognize,
 	}
 
@@ -139,7 +144,8 @@ func (a *Assiser) runCommand(cmd string) {
 	i, percent := a.RotateCommand(cmd)
 	a.log.DEBUG("rotate command", cmd, fmt.Sprint(i), fmt.Sprint(percent))
 	if percent == 100 {
-		a.log.INFO("Run command", cmd)
+		a.log.DEBUG("Run command", cmd)
+		a.PostSiglanEvent(AEApplyCommand)
 		ctx, cancel := context.WithCancel(context.Background())
 		a.commands[i].Context = ctx
 		a.commands[i].Cancel = cancel
@@ -338,10 +344,18 @@ func (a *Assiser) Print(t ...any) {
 }
 
 func (a *Assiser) PostSiglanEvent(s AssiserEvent) {
+	if a.eventChanCapNow > 0 {
+		return
+	}
+	a.Lock()
+	a.eventChanCapNow += 1
+	defer a.Unlock()
 	a.eventChan <- s
 }
 
 func (a *Assiser) GetSignalEvent() <-chan AssiserEvent {
-
+	a.Lock()
+	a.eventChanCapNow -= 1
+	defer a.Unlock()
 	return a.eventChan
 }
