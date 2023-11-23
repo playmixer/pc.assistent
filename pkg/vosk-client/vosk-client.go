@@ -62,6 +62,34 @@ func (c *Client) SetLogger(log logger) {
 	c.log = log
 }
 
+func (c *Client) PostConfigure() error {
+	u := url.URL{Scheme: "ws", Host: c.Host + ":" + c.Port, Path: ""}
+	c.log.DEBUG("connecting to ", u.String())
+
+	// Opening websocket connection
+	soc, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	if err != nil {
+		c.log.ERROR(err.Error())
+		return err
+	}
+	c.socket = soc
+	defer c.socket.Close()
+
+	err = soc.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("{\"config\" : { \"sample_rate\" : %v } }", c.SampleRate)))
+	if err != nil {
+		c.log.ERROR(err.Error())
+		return err
+	}
+
+	err = c.socket.WriteMessage(websocket.TextMessage, []byte("{\"eof\" : 1}"))
+	if err != nil {
+		c.log.ERROR(err.Error())
+		return err
+	}
+
+	return nil
+}
+
 func (c *Client) Recognize(bufWav []byte) (string, error) {
 	u := url.URL{Scheme: "ws", Host: c.Host + ":" + c.Port, Path: ""}
 	c.log.DEBUG("connecting to ", u.String())
@@ -75,11 +103,11 @@ func (c *Client) Recognize(bufWav []byte) (string, error) {
 	c.socket = soc
 	defer c.socket.Close()
 
-	err = soc.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("{\"config\" : { \"sample_rate\" : %v } }", c.SampleRate)))
-	if err != nil {
-		c.log.ERROR(err.Error())
-		return "", err
-	}
+	// err = soc.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("{\"config\" : { \"sample_rate\" : %v } }", c.SampleRate)))
+	// if err != nil {
+	// 	c.log.ERROR(err.Error())
+	// 	return "", err
+	// }
 
 	f := bytes.NewReader(bufWav)
 	for {
