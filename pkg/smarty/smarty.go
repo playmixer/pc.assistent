@@ -110,8 +110,9 @@ type Assiser struct {
 	ListenCommandTimeout time.Duration
 	commands             []CommandStruct
 	eventChan            chan AssiserEvent
-	eventChanCapNow      int
 	recognize            IReacognize
+	VoiceEnable          bool
+	voiceFunc            func(text string) error
 	sync.Mutex
 }
 
@@ -125,8 +126,9 @@ func New(ctx context.Context, recognize IReacognize) *Assiser {
 		ListenCommandTimeout: time.Second * 6,
 		commands:             make([]CommandStruct, 0),
 		eventChan:            make(chan AssiserEvent, 1),
-		eventChanCapNow:      0,
 		recognize:            recognize,
+		VoiceEnable:          true,
+		voiceFunc:            func(text string) error { return nil },
 	}
 
 	return a
@@ -343,18 +345,25 @@ func (a *Assiser) Print(t ...any) {
 }
 
 func (a *Assiser) PostSiglanEvent(s AssiserEvent) {
-	if a.eventChanCapNow > 0 {
-		return
+	select {
+	case a.eventChan <- s:
+	default:
 	}
-	a.Lock()
-	a.eventChanCapNow += 1
-	defer a.Unlock()
-	a.eventChan <- s
+
 }
 
 func (a *Assiser) GetSignalEvent() <-chan AssiserEvent {
-	a.Lock()
-	a.eventChanCapNow -= 1
-	defer a.Unlock()
 	return a.eventChan
+}
+
+func (a *Assiser) SetTTS(f func(text string) error) {
+	a.voiceFunc = f
+}
+
+func (a *Assiser) Voice(text string) error {
+	if !a.VoiceEnable {
+		return nil
+	}
+
+	return a.voiceFunc(text)
 }
