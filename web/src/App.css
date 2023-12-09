@@ -1,0 +1,59 @@
+.App {
+  text-align: center;
+  height: 100vh;
+  background-color: rgb(29, 53, 119);
+}
+
+.App.disconnected {
+  background-color: red;
+}
+
+.box-effect {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+
+.box-effect.cmd-exec {
+    animation: exec 5s;
+}
+@keyframes exec {
+  from {
+    background-color: rgb(29, 53, 119);
+  }
+  to {
+    background-color: black;
+  }
+}
+
+.box-effect .listen-effect {
+  height: 250px;
+  width: 250px;
+  border-radius: 50%;
+  border: solid 50px rgb(67, 204, 204);
+  transition-duration: 250ms;
+  animation: puls 1s infinite alternate;
+}
+@keyframes puls {
+  from {
+    height: 250px;
+    width: 250px;
+    border-width: 50px;
+    border-color: rgb(67, 204, 204);
+  }
+  to {
+    height: 200px;
+    width: 200px;
+    border-width: 50px;
+    border-color: rgb(17, 143, 143);
+  }
+}
+
+.box-effect .white-effect {
+  height: 250px;
+  width: 250px;
+  border-radius: 50%;
+  border: solid 50px rgba(99, 204, 67, 0.993);
+  transition-duration: 250ms;
+}

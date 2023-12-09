@@ -4,4 +4,6 @@ services:
   vosk-server:
     build: .
     ports:
-      - "2700:2700"    
+      - "2700:2700"
+    # mem_limit: 2G
+    # cpu_shares: 1024

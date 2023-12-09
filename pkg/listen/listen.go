@@ -22,7 +22,20 @@ type logger interface {
 	DEBUG(v ...string)
 }
 
+type tLog struct{}
+
+func (l *tLog) ERROR(v ...string) {
+	fmt.Println(v)
+}
+func (l *tLog) INFO(v ...string) {
+	fmt.Println(v)
+}
+func (l *tLog) DEBUG(v ...string) {
+	fmt.Println(v)
+}
+
 type Listener struct {
+	NameApp    string
 	WavCh      chan []byte
 	Long       time.Duration
 	stopCh     chan struct{}
@@ -34,6 +47,7 @@ type Listener struct {
 	IsActive   bool
 	StartTime  time.Time
 	sliceCh    chan int
+	service    sync.Mutex
 	sync.Mutex
 }
 
@@ -47,6 +61,7 @@ func New(t time.Duration) *Listener {
 		stopCh:     make(chan struct{}),
 		WavCh:      make(chan []byte, 1),
 		sliceCh:    make(chan int, 1),
+		log:        &tLog{},
 	}
 }
 
@@ -54,11 +69,15 @@ func (l *Listener) SetLogger(log logger) {
 	l.log = log
 }
 
+func (l *Listener) SetName(name string) {
+	l.NameApp = name
+}
+
 func (l *Listener) Stop() {
 	if !l.IsActive {
 		return
 	}
-	l.log.DEBUG("Stop")
+	l.log.DEBUG(l.NameApp + ": Stop")
 	close(l.stopCh)
 	l.Lock()
 	defer l.Unlock()
@@ -71,27 +90,27 @@ func (l *Listener) SliceRecod() {
 
 func (l *Listener) Start(ctx context.Context) {
 	go func() {
+		l.service.Lock()
+		defer l.service.Unlock()
 		if l.IsActive {
 			return
 		}
 		l.StartTime = time.Now()
-		l.Lock()
 		l.IsActive = true
-		l.Unlock()
 		l.stopCh = make(chan struct{})
 		// l.WavCh = make(chan []byte, 1)
 		showAudioDevices := false
 		audioDeviceIndex := -1
 		flag.Parse()
-		l.log.DEBUG(fmt.Sprintf("pvrecorder.go version: %s", pvrecorder.Version))
+		l.log.DEBUG(fmt.Sprintf(l.NameApp+": pvrecorder.go version: %s", pvrecorder.Version))
 
 		if showAudioDevices {
-			l.log.DEBUG("Printing devices...")
+			l.log.DEBUG(l.NameApp + ": Printing devices...")
 			if devices, err := pvrecorder.GetAvailableDevices(); err != nil {
-				log.Fatalf("Error: %s.\n", err.Error())
+				log.Fatalf(l.NameApp+" Error: %s.\n", err.Error())
 			} else {
 				for i, device := range devices {
-					l.log.DEBUG(fmt.Sprintf("index: %d, device name: %s", i, device))
+					l.log.DEBUG(fmt.Sprintf(l.NameApp+"index: %d, device name: %s", i, device))
 				}
 			}
 			return
@@ -103,17 +122,17 @@ func (l *Listener) Start(ctx context.Context) {
 			BufferedFramesCount: 10,
 		}
 
-		l.log.DEBUG("Initializing...")
+		l.log.DEBUG(l.NameApp + ": Initializing...")
 		if err := recorder.Init(); err != nil {
-			l.log.ERROR("Error: %s.\n", err.Error())
+			l.log.ERROR(l.NameApp+" Error: %s.\n", err.Error())
 		}
 		defer recorder.Delete()
 
-		l.log.DEBUG(fmt.Sprintf("Using device: %s", recorder.GetSelectedDevice()))
+		l.log.DEBUG(fmt.Sprintf(l.NameApp+": Using device: %s", recorder.GetSelectedDevice()))
 
-		l.log.INFO("Starting listener...")
+		l.log.INFO(l.NameApp + ": Starting listener...")
 		if err := recorder.Start(); err != nil {
-			l.log.ERROR("Error: %s.\n", err.Error())
+			l.log.ERROR(l.NameApp+" Error: %s.\n", err.Error())
 		}
 
 		l.stopCh = make(chan struct{})
@@ -121,7 +140,7 @@ func (l *Listener) Start(ctx context.Context) {
 
 		go func() {
 			<-l.stopCh
-			l.log.DEBUG("stop chan")
+			l.log.DEBUG(l.NameApp + ": stop chan")
 			close(waitCh)
 		}()
 
@@ -136,52 +155,62 @@ func (l *Listener) Start(ctx context.Context) {
 		for {
 			select {
 			case <-ctx.Done():
-				l.log.DEBUG("Stopping...")
-				l.Lock()
+				// l.Lock()
+				l.log.DEBUG(l.NameApp + ": Stopping...")
 				l.WavCh <- outputFile.buf.Bytes()
-				l.Unlock()
+				// l.Unlock()
 				break waitLoop
 
 			case <-waitCh:
-				l.log.DEBUG("Stopping...")
-				l.Lock()
+				// l.Lock()
+				l.log.DEBUG(l.NameApp + ": Stopping...")
 				l.WavCh <- outputFile.buf.Bytes()
-				l.Unlock()
+				// l.Unlock()
 				break waitLoop
 
 			//отрезаем по таймауту
 			case <-delay.C:
-				l.log.DEBUG("step...")
+				// l.Lock()
+				l.log.DEBUG(l.NameApp + ": step delay...")
 				outputWav.Close()
 				outputFile.Close()
-				l.log.DEBUG("step 1...", "size buf", strconv.Itoa(outputFile.buf.Len()))
-				l.Lock()
+				l.log.DEBUG(l.NameApp+": step delay 1 ...", "size buf", strconv.Itoa(outputFile.buf.Len()))
 				l.WavCh <- outputFile.buf.Bytes()
-				l.Unlock()
-				l.log.DEBUG("step 2...")
+				// select {
+				// case l.WavCh <- outputFile.buf.Bytes():
+				// default:
+				// }
+				l.log.DEBUG(l.NameApp + ": step delay 1 writed to wav chanel")
+				l.log.DEBUG(l.NameApp + ": step delay 2...")
 				outputFile = &WriterSeeker{}
-				outputWav = wav.NewEncoder(outputFile, pvrecorder.SampleRate, 16, 1, 1)
-				l.log.DEBUG("...stop step")
+				outputWav = wav.NewEncoder(outputFile, pvrecorder.SampleRate, l.BitDepth, l.NumChans, 1)
+				l.log.DEBUG(l.NameApp + ": ...stop step delay 2")
+				// l.Unlock()
 
 			//отрезаем кусок по команде
 			case <-l.sliceCh:
-				l.log.DEBUG("listener", "slice record")
-				l.log.DEBUG("step...")
+				// l.Lock()
+				l.log.DEBUG(l.NameApp+": listener", "slice record")
+				l.log.DEBUG(l.NameApp + ": step slice...")
 				outputWav.Close()
 				outputFile.Close()
-				l.log.DEBUG("step 1...", "size buf", strconv.Itoa(outputFile.buf.Len()))
-				l.Lock()
+				l.log.DEBUG(l.NameApp+": step slice 1...", "size buf", strconv.Itoa(outputFile.buf.Len()))
 				l.WavCh <- outputFile.buf.Bytes()
-				l.Unlock()
-				l.log.DEBUG("step 2...")
+				// select {
+				// case l.WavCh <- outputFile.buf.Bytes():
+				// default:
+				// }
+				l.log.DEBUG(l.NameApp + ": step slice 1 writed to wav chanel")
+				l.log.DEBUG(l.NameApp + ": step slice 2...")
 				outputFile = &WriterSeeker{}
-				outputWav = wav.NewEncoder(outputFile, pvrecorder.SampleRate, 16, 1, 1)
-				l.log.DEBUG("...stop step")
+				outputWav = wav.NewEncoder(outputFile, pvrecorder.SampleRate, l.BitDepth, l.NumChans, 1)
+				l.log.DEBUG(l.NameApp + ": ...stop step slice 2")
+				// l.Unlock()
 
 			default:
 				pcm, err := recorder.Read()
 				if err != nil {
-					l.log.ERROR(fmt.Sprintf("Error: %s.\n", err.Error()))
+					l.log.ERROR(fmt.Sprintf(l.NameApp+": Error: %s.\n", err.Error()))
 				}
 				if outputWav != nil {
 					for _, f := range pcm {
@@ -194,7 +223,7 @@ func (l *Listener) Start(ctx context.Context) {
 			}
 		}
 
-		l.log.INFO("Stop listener")
+		l.log.INFO(l.NameApp + ": Stop listener")
 	}()
 }
 
@@ -260,4 +289,86 @@ func (ws *WriterSeeker) Close() error {
 // BytesReader returns a *bytes.Reader. Use it when you need a reader that implements the io.ReadSeeker interface
 func (ws *WriterSeeker) BytesReader() *bytes.Reader {
 	return bytes.NewReader(ws.buf.Bytes())
+}
+
+func IsWavEmpty(data []byte) (bool, error) {
+	// Проверяем, что у нас есть достаточно данных для анализа заголовка WAV
+	if len(data) < 44 {
+		return false, fmt.Errorf("недостаточно данных для анализа заголовка WAV")
+	}
+
+	// Проверяем сигнатуру "RIFF" и "WAVE"
+	if string(data[0:4]) != "RIFF" || string(data[8:12]) != "WAVE" {
+		return false, fmt.Errorf("неверная сигнатура WAV")
+	}
+
+	// Получаем формат аудио из заголовка WAV
+	audioFormat := int(data[20]) | int(data[21])<<8
+
+	// Проверяем, что формат аудио - PCM
+	if audioFormat != 1 {
+		return false, fmt.Errorf("поддерживаются только файлы PCM")
+	}
+
+	// Получаем число каналов из заголовка WAV
+	numChannels := int(data[22]) | int(data[23])<<8
+
+	// Получаем битность из заголовка WAV
+	bitsPerSample := int(data[34]) | int(data[35])<<8
+
+	// Вычисляем размер блока данных сэмплов
+	blockSize := (bitsPerSample / 8) * numChannels
+
+	// Анализируем данные сэмплов
+	for i := 44; i < len(data); i += blockSize {
+		for j := 0; j < blockSize; j++ {
+			if data[i+j] != 0 {
+				return false, nil
+			}
+		}
+	}
+
+	return true, nil
+}
+
+func IsSilent(data []byte) (bool, error) {
+	// Проверяем, что у нас есть достаточно данных для анализа заголовка WAV
+	if len(data) < 44 {
+		return false, fmt.Errorf("недостаточно данных для анализа заголовка WAV")
+	}
+
+	// Анализируем данные сэмплов
+	for i := 44; i < len(data); i += 2 {
+		// Преобразуем два байта в 16-битное число
+		sample := int16(data[i]) | int16(data[i+1])<<8
+
+		// Проверяем, является ли амплитуда нулевой
+		// fmt.Println("sample", sample, int16(data[i]), int16(data[i+1])<<8)
+		if sample != 0 {
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+
+func IsVoiceless(data []byte, minSample, maxSample int16) (bool, int16, error) {
+	// Проверяем, что у нас есть достаточно данных для анализа заголовка WAV
+	if len(data) < 44 {
+		return false, 0, fmt.Errorf("недостаточно данных для анализа заголовка WAV")
+	}
+
+	// Анализируем данные сэмплов
+	for i := 44; i < len(data); i += 2 {
+		// Преобразуем два байта в 16-битное число
+		sample := int16(data[i]) | int16(data[i+1])<<8
+
+		// Проверяем, является ли амплитуда нулевой
+		// fmt.Println("sample", sample)
+		if sample > minSample && sample < maxSample {
+			return true, sample, nil
+		}
+	}
+
+	return false, 0, nil
 }
