@@ -44,7 +44,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background()) //вся программа
 	//логер
 	log = logger.New("app")
-	log.LogLevel = logger.DEBUG
+	log.LogLevel = logger.INFO
 
 	// Загрузка .env
 	err := godotenv.Load()
@@ -66,9 +66,8 @@ func main() {
 	assistent.SetRecognizeCommand(recognizer)
 	assistent.SetRecognizeName(recognizer)
 	assistent.SetConfig(smarty.Config{
-		Names:                []string{"альфа", "бета", "бэта"},
-		ListenNameTimeout:    time.Second * 3,
-		ListenCommandTimeout: time.Second * 6,
+		Names:         []string{"альфа", "бета", "бэта"},
+		ListenTimeout: time.Second * 1,
 	})
 	assistent.SetLogger(log)
 	assistent.SetTTS(speach.Voice)
@@ -109,6 +108,19 @@ func main() {
 	assistent.AddCommand([]string{"выключи везде свет", "выключи весь свет", "выключи свет везде"}, func(ctx context.Context, a *smarty.Assiser) {
 		shome.PostDevice("787166238cce4e149625", shome.NewCommand().Add("switch_1", false).Add("switch_2", false))
 	})
+	assistent.AddCommand([]string{"счет", "счёт"}, func(ctx context.Context, a *smarty.Assiser) {
+		ticker := time.NewTicker(time.Second)
+		counter := 0
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				counter += 1
+				log.INFO(fmt.Sprintf("counter %v", counter))
+			}
+		}
+	})
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
@@ -132,13 +144,13 @@ func main() {
 
 			case e := <-assistent.GetSignalEvent():
 				log.DEBUG("Event", fmt.Sprint(e))
-				if e == smarty.AEStartListening {
+				if e == smarty.AEStartListeningCommand {
 					log.INFO("Event:", "Listening command")
 					// sayme.New().SoundStart()
 					traymenu.SetIcon(".\\command.ico")
 				}
-				if e == smarty.AEStopListening {
-					log.INFO("Event:", "Stop listening command")
+				if e == smarty.AEStartListeningName {
+					log.INFO("Event:", "Listening name")
 					// sayme.New().SoundEnd()
 					traymenu.SetIconDefault()
 				}

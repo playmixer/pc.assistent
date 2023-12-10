@@ -26,6 +26,7 @@ require (
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/gorilla/websocket v1.5.1 // indirect
 	github.com/hajimehoshi/oto v1.0.1 // indirect
+	github.com/moutend/go-wav v0.0.0-20170820031854-56127fbbb7ba // indirect
 	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
 	github.com/paul-mannino/go-fuzzywuzzy v0.0.0-20200127021948-54652b135d0e // indirect
 	github.com/pkg/errors v0.9.1 // indirect

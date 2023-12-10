@@ -20,7 +20,9 @@ func (r *rcgnz) Recognize(bufWav []byte) (string, error) {
 func init() {
 	ctx := context.TODO()
 	recognize := &rcgnz{}
-	assist = smarty.New(ctx, recognize)
+	assist = smarty.New(ctx)
+	assist.SetRecognizeCommand(recognize)
+	assist.SetRecognizeName(recognize)
 
 	assist.AddCommand([]string{"тест"}, func(ctx context.Context, a *smarty.Assiser) {})                                          //1
 	assist.AddCommand([]string{"который час", "какое время", "сколько времени"}, func(ctx context.Context, a *smarty.Assiser) {}) //2
@@ -182,4 +184,23 @@ func TestRotateCommand2(t *testing.T) {
 		}
 	}
 
+}
+
+func TestIsFindedNameInText(t *testing.T) {
+	names := []string{
+		"альфа",
+		"бета",
+	}
+
+	cases := map[string]bool{
+		"альфа включи свет":                   true,
+		"включи свет":                         false,
+		"бета включи свет в ванне пожалуйста": true,
+	}
+
+	for text, v := range cases {
+		if smarty.IsFindedNameInText(names, text) != v {
+			t.Fatalf("case `%s` is FAILED", text)
+		}
+	}
 }

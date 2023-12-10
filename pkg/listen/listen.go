@@ -14,6 +14,7 @@ import (
 
 	pvrecorder "github.com/Picovoice/pvrecorder/binding/go"
 	"github.com/go-audio/wav"
+	concatwav "github.com/moutend/go-wav"
 )
 
 type logger interface {
@@ -176,10 +177,6 @@ func (l *Listener) Start(ctx context.Context) {
 				outputFile.Close()
 				l.log.DEBUG(l.NameApp+": step delay 1 ...", "size buf", strconv.Itoa(outputFile.buf.Len()))
 				l.WavCh <- outputFile.buf.Bytes()
-				// select {
-				// case l.WavCh <- outputFile.buf.Bytes():
-				// default:
-				// }
 				l.log.DEBUG(l.NameApp + ": step delay 1 writed to wav chanel")
 				l.log.DEBUG(l.NameApp + ": step delay 2...")
 				outputFile = &WriterSeeker{}
@@ -196,10 +193,6 @@ func (l *Listener) Start(ctx context.Context) {
 				outputFile.Close()
 				l.log.DEBUG(l.NameApp+": step slice 1...", "size buf", strconv.Itoa(outputFile.buf.Len()))
 				l.WavCh <- outputFile.buf.Bytes()
-				// select {
-				// case l.WavCh <- outputFile.buf.Bytes():
-				// default:
-				// }
 				l.log.DEBUG(l.NameApp + ": step slice 1 writed to wav chanel")
 				l.log.DEBUG(l.NameApp + ": step slice 2...")
 				outputFile = &WriterSeeker{}
@@ -371,4 +364,24 @@ func IsVoiceless(data []byte, minSample, maxSample int16) (bool, int16, error) {
 	}
 
 	return false, 0, nil
+}
+
+func ConcatWav(i1, i2 []byte) []byte {
+
+	// Create wav.File.
+	a := &concatwav.File{}
+	b := &concatwav.File{}
+
+	// Unmarshal input1.wav and input2.wav.
+	concatwav.Unmarshal(i1, a)
+	concatwav.Unmarshal(i2, b)
+
+	// Add input2.wav to input1.wav.
+	c, _ := concatwav.New(a.SamplesPerSec(), a.BitsPerSample(), a.Channels())
+	io.Copy(c, a)
+	io.Copy(c, b)
+
+	// Marshal input1.wav and save result.
+	file, _ := concatwav.Marshal(c)
+	return file
 }

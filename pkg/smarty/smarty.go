@@ -14,7 +14,6 @@ import (
 	"time"
 
 	fuzzy "github.com/paul-mannino/go-fuzzywuzzy"
-	// "github.com/playmixer/pc.assistent/pkg/listen"
 	"golang.org/x/exp/slices"
 	"pc.assistent/pkg/listen"
 )
@@ -22,15 +21,17 @@ import (
 type AssiserEvent int
 
 const (
-	AEStartListening     AssiserEvent = 10
-	AEStopListening      AssiserEvent = 20
-	AEStartListeningName AssiserEvent = 30
-	AEStopSListeningName AssiserEvent = 40
-	AEApplyCommand       AssiserEvent = 50
+	AEStartListeningCommand AssiserEvent = 10
+	AEStartListeningName    AssiserEvent = 20
+	AEApplyCommand          AssiserEvent = 30
 
 	F_MIN_TOKEN    = 90
 	F_MAX_DISTANCE = 10
 	F_MIN_RATIO    = 75
+
+	LEN_WAV_BUFF = 20
+
+	CMD_MAX_EMPTY_MESSAGE = 10
 )
 
 type iLogger interface {
@@ -51,24 +52,6 @@ func (l *logger) INFO(v ...string) {
 
 func (l *logger) DEBUG(v ...string) {
 	log.Println("DEBUG", v)
-}
-
-type listenMessage struct {
-	_message string
-	t        time.Time
-}
-
-func (lm *listenMessage) SetMessage(m string) {
-	lm.t = time.Now()
-	lm._message = m
-}
-
-func (lm *listenMessage) IsActualMessage(m string, d time.Duration) bool {
-	if m == lm._message && time.Since(lm.t) < d {
-		return true
-	}
-
-	return false
 }
 
 func any2ChanResult(ctx context.Context, c1 chan []byte, c2 chan []byte) chan []byte {
@@ -101,47 +84,69 @@ type CommandStruct struct {
 }
 
 type Config struct {
-	Names                []string
-	ListenNameTimeout    time.Duration
-	ListenCommandTimeout time.Duration
+	Names         []string
+	ListenTimeout time.Duration
 }
 
 type IReacognize interface {
 	Recognize(bufWav []byte) (string, error)
 }
 
+type wavBuffer struct {
+	buf  *[]byte
+	text string
+}
+
 type Assiser struct {
-	ctx                  context.Context
-	log                  iLogger
-	Names                []string
-	ListenNameTimeout    time.Duration
-	ListenCommandTimeout time.Duration
-	isListenName         bool
-	commands             []CommandStruct
-	eventChan            chan AssiserEvent
-	recognizeCommand     IReacognize
-	recognizeName        IReacognize
-	VoiceEnable          bool
-	voiceFunc            func(text string) error
+	ctx              context.Context
+	log              iLogger
+	Names            []string
+	ListenTimeout    time.Duration
+	commands         []CommandStruct
+	eventChan        chan AssiserEvent
+	recognizeCommand IReacognize
+	recognizeName    IReacognize
+	VoiceEnable      bool
+	voiceFunc        func(text string) error
+	wavBuffer        []wavBuffer
 	sync.Mutex
 }
 
 func New(ctx context.Context) *Assiser {
 
 	a := &Assiser{
-		log:                  &logger{},
-		ctx:                  ctx,
-		Names:                []string{"альфа", "alpha"},
-		ListenNameTimeout:    time.Second * 2,
-		ListenCommandTimeout: time.Second * 6,
-		isListenName:         true,
-		commands:             make([]CommandStruct, 0),
-		eventChan:            make(chan AssiserEvent, 1),
-		VoiceEnable:          true,
-		voiceFunc:            func(text string) error { return nil },
+		log:           &logger{},
+		ctx:           ctx,
+		Names:         []string{"альфа", "alpha"},
+		ListenTimeout: time.Second * 2,
+		commands:      make([]CommandStruct, 0),
+		eventChan:     make(chan AssiserEvent, 1),
+		VoiceEnable:   true,
+		voiceFunc:     func(text string) error { return nil },
+		wavBuffer:     make([]wavBuffer, LEN_WAV_BUFF),
 	}
 
 	return a
+}
+
+func (a *Assiser) AddWavToBuf(w *wavBuffer) *[]wavBuffer {
+	a.Lock()
+	defer a.Unlock()
+	a.wavBuffer = append([]wavBuffer{*w}, a.wavBuffer[:LEN_WAV_BUFF-1]...)
+
+	return &a.wavBuffer
+}
+
+func (a *Assiser) GetWavFromBuf(count int) []byte {
+	a.Lock()
+	defer a.Unlock()
+	result := *a.wavBuffer[0].buf
+	for i := 1; i <= count && i <= LEN_WAV_BUFF && i < len(a.wavBuffer); i++ {
+		if a.wavBuffer[i].buf != nil {
+			result = listen.ConcatWav(*a.wavBuffer[i].buf, result)
+		}
+	}
+	return result
 }
 
 func (a *Assiser) SetRecognizeCommand(recognize IReacognize) {
@@ -160,17 +165,18 @@ func (a *Assiser) AddCommand(cmd []string, f CommandFunc) {
 }
 
 func (a *Assiser) runCommand(cmd string) {
+	a.Lock()
+	defer a.Unlock()
+	cmd = CleanCommandFromName(a.Names, cmd)
 	i, found := a.RotateCommand2(cmd)
 	a.log.DEBUG("rotate command", cmd, fmt.Sprint(i), fmt.Sprint(found))
 	if found {
 		a.log.DEBUG("Run command", cmd)
-		a.PostSiglanEvent(AEApplyCommand)
+		a.PostSignalEvent(AEApplyCommand)
 		ctx, cancel := context.WithCancel(context.Background())
 		a.commands[i].Context = ctx
 		a.commands[i].Cancel = cancel
 		go func() {
-			a.Lock()
-			defer a.Unlock()
 			a.commands[i].IsActive = true
 			a.commands[i].Func(ctx, a)
 			a.commands[i].IsActive = false
@@ -278,8 +284,7 @@ func (a *Assiser) RotateCommand2(talk string) (index int, found bool) {
 
 func (a *Assiser) SetConfig(cfg Config) {
 	a.Names = cfg.Names
-	a.ListenNameTimeout = cfg.ListenNameTimeout
-	a.ListenCommandTimeout = cfg.ListenCommandTimeout
+	a.ListenTimeout = cfg.ListenTimeout
 }
 
 func (a *Assiser) SetLogger(log iLogger) {
@@ -300,146 +305,78 @@ func (a *Assiser) Start() {
 
 	// слушаем имя 1ый поток
 	log.INFO("Starting listen. Stram #1 ")
-	r1 := listen.New(a.ListenNameTimeout)
-	r1.SetName("NameL1")
-	r1.SetLogger(log)
-	r1.Start(ctx)
-	defer r1.Stop()
-
-	r2 := listen.New(a.ListenNameTimeout)
-	r2.SetName("NameL2")
-	r2.SetLogger(log)
-	go func() {
-		//задержка перед вторым потоком что бы слушать их асинхронно
-		time.Sleep(a.ListenNameTimeout / 2)
-		log.INFO("Starting listen. Stram #2 ")
-		r2.Start(ctx)
-	}()
-	// слушаем имя 2ой поток
-	defer r2.Stop()
-
-	// слушает паузы
-	log.INFO("Initilize listen command. Stram #1 ")
-	rCheckPause := listen.New(time.Second)
-	rCheckPause.SetName("PauseL")
-	rCheckPause.SetLogger(log)
-	defer rCheckPause.Stop()
-
-	// слушает только команду
-	log.INFO("Initilize listen command. Stram #2 ")
-	rCommand := listen.New(time.Minute)
-	rCommand.SetName("CommandL")
-	rCommand.SetLogger(log)
-	defer rCommand.Stop()
-
-	var lastMessage = listenMessage{
-		t: time.Now(),
-	}
-
-	listenName := any2ChanResult(ctx, r1.WavCh, r2.WavCh)
-	// listenCommand := any2ChanResult(ctx, rCom1.WavCh, rCom2.WavCh)
+	record := listen.New(a.ListenTimeout)
+	record.SetName("Record")
+	record.SetLogger(log)
+	record.Start(ctx)
+	defer record.Stop()
 
 	a.AddCommand([]string{"стоп", "stop"}, func(ctx context.Context, a *Assiser) {
 		for i := range a.commands {
 			if a.commands[i].IsActive {
-				log.DEBUG("Стоп", fmt.Sprint(a.commands[i]))
+				log.INFO("Стоп", fmt.Sprint(a.commands[i]))
 				a.commands[i].Cancel()
 			}
 		}
 	})
 
+	var notEmptyMessageCounter = 0
+	var emptyMessageCounter = 0
+	var isListenName = true
+
 waitFor:
 	for {
-		log.DEBUG("empty for loop")
+		log.DEBUG("for loop")
+		// fmt.Println("emptyMessageCounter", emptyMessageCounter)
+		// fmt.Println(a.wavBuffer)
 		select {
 		case <-sigs:
 			cancel()
 			break waitFor
+
 		case <-a.ctx.Done():
 			cancel()
 			break waitFor
-		//слушаем имя
-		case s := <-listenName:
-			// if !a.isListenName {
-			// 	continue
-			// }
-			log.DEBUG("smarty" + " listening name ")
+
+		case s := <-record.WavCh:
+			log.DEBUG("smarty read from wav chanel")
 			txt, err := a.recognizeName.Recognize(s)
 			if err != nil {
 				log.ERROR(err.Error())
 			}
+			a.AddWavToBuf(&wavBuffer{buf: &s, text: txt})
 			if txt != "" {
-				if !lastMessage.IsActualMessage(txt, a.ListenNameTimeout) {
-					log.INFO("Вы назвали имя:", txt)
-				}
-				for _, name := range a.Names {
-					if txt == name {
-						//стопаем слушать имя
-						a.isListenName = false
-						r1.Stop()
-						r2.Stop()
-						//начинаем слушать голосовую команду
-						if !lastMessage.IsActualMessage(txt, a.ListenNameTimeout) {
-							log.DEBUG("Start listen command")
-							a.PostSiglanEvent(AEStartListening)
-							rCheckPause.Start(ctx)
-							rCommand.Start(ctx)
-						}
-						break
-					}
-				}
-				lastMessage.SetMessage(txt)
+				notEmptyMessageCounter += 1
+				emptyMessageCounter = 0
 			}
-
-		//проверяем есть ли продолжение команды
-		case ct := <-rCheckPause.WavCh:
-			// if a.isListenName {
-			// 	continue
-			// }
-			log.DEBUG("Readed pause from wav chanel")
-			var err error
-			txt := ""
-			txt, err = a.recognizeName.Recognize(ct)
-			if err != nil {
-				log.ERROR(err.Error())
-			}
-			//проверяем было ли что то сказано
 			if txt == "" {
-				rCommand.SliceRecod()
-			}
-
-		//слушаем команду
-		case com := <-rCommand.WavCh:
-			// if a.isListenName {
-			// 	continue
-			// }
-			log.DEBUG("Readed command from wav chanel")
-			txt, err := a.recognizeCommand.Recognize(com)
-			if err != nil {
-				log.ERROR(err.Error())
-			}
-			if txt != "" {
-				if !lastMessage.IsActualMessage(txt, a.ListenCommandTimeout) {
-					log.INFO("Вы сказали:", txt)
-					a.runCommand(txt)
-				}
-				lastMessage.SetMessage(txt)
-			} else {
-				if rCheckPause.IsActive || rCommand.IsActive {
-					if time.Since(lastMessage.t) > a.ListenCommandTimeout {
-						a.PostSiglanEvent(AEStopListening)
-						log.DEBUG("Stop listen command")
-						rCheckPause.Stop()
-						rCommand.Stop()
-						a.PostSiglanEvent(AEStartListeningName)
-						a.isListenName = true
-						// go func() {
-						r1.Start(ctx)
-						time.Sleep(a.ListenNameTimeout / 2)
-						r2.Start(ctx)
-						// }()
+				if notEmptyMessageCounter > 0 && !isListenName {
+					wavB := a.GetWavFromBuf(notEmptyMessageCounter)
+					translateText, err := a.recognizeCommand.Recognize(wavB)
+					if err != nil {
+						log.ERROR(err.Error())
 					}
+					log.INFO("Вы сказали: " + translateText)
+					a.runCommand(translateText)
 				}
+				if emptyMessageCounter > CMD_MAX_EMPTY_MESSAGE && !isListenName {
+					isListenName = true
+					a.PostSignalEvent(AEStartListeningName)
+				}
+				notEmptyMessageCounter = 0
+				emptyMessageCounter += 1
+			}
+			if isListenName && len(a.wavBuffer) > 1 && notEmptyMessageCounter > 1 {
+				wavB := a.GetWavFromBuf(2)
+				textWithName, err := a.recognizeName.Recognize(wavB)
+				if err != nil {
+					log.ERROR(err.Error())
+				}
+				if IsFindedNameInText(a.Names, textWithName) {
+					isListenName = false
+					a.PostSignalEvent(AEStartListeningCommand)
+				}
+
 			}
 		}
 	}
@@ -449,7 +386,7 @@ func (a *Assiser) Print(t ...any) {
 	fmt.Println(a.Names[0]+": ", fmt.Sprint(t...))
 }
 
-func (a *Assiser) PostSiglanEvent(s AssiserEvent) {
+func (a *Assiser) PostSignalEvent(s AssiserEvent) {
 	select {
 	case a.eventChan <- s:
 	default:
@@ -518,4 +455,22 @@ func (a *Assiser) LoadCommands(filepath string) error {
 		a.AddCommand(data[i].Commands, f)
 	}
 	return nil
+}
+
+func IsFindedNameInText(names []string, text string) bool {
+	for _, name := range names {
+		if fuzzy.TokenSetRatio(name, text) == 100 {
+			return true
+		}
+	}
+	return false
+}
+
+func CleanCommandFromName(names []string, command string) string {
+	res := command
+	for _, name := range names {
+		res = strings.ReplaceAll(command, name, "")
+	}
+
+	return res
 }

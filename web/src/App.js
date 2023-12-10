@@ -8,7 +8,7 @@ const WS_URL = 'ws://127.0.0.1:8080';
 
 function App() {
   const [isConnected, setConnected] = useState(false)
-  const [event, setEvent] = useState(30)
+  const [event, setEvent] = useState(20)
   const [state, setState] = useState({})
   
   const connect = websocket(
@@ -54,8 +54,8 @@ function App() {
   return (
     <div className={`App ${!isConnected && "disconnected"}`}>
       {!isConnected && <span>Нет соединения</span>}
-      <div className={`box-effect ${event == 50 && "cmd-exec"}`}>
-        {(event == 10 || event == 50) 
+      <div className={`box-effect ${event == 30 && "cmd-exec"}`}>
+        {((event == 10 || event == 30) && isConnected) 
           ? <div className="listen-effect"></div>
           : <div className="white-effect"></div>
         }
