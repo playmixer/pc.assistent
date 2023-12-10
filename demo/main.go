@@ -1,1 +1,41 @@
 package main
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/playmixer/pc.assistent/pkg/logger"
+	"github.com/playmixer/pc.assistent/pkg/smarty"
+	voskclient "github.com/playmixer/pc.assistent/pkg/vosk-client"
+)
+
+func main() {
+
+	ctx := context.TODO()
+
+	log := logger.New("app")
+	log.LogLevel = logger.INFO
+
+	recognizer := voskclient.New(log)
+
+	assistent := smarty.New(ctx)
+	assistent.SetRecognizeCommand(recognizer)
+	assistent.SetRecognizeName(recognizer)
+	assistent.SetLogger(log)
+	assistent.SetConfig(smarty.Config{
+		Names:         []string{"альфа", "бета", "бэта"},
+		ListenTimeout: time.Second * 1,
+	})
+
+	// Голосовые команды
+	assistent.AddCommand([]string{"который час"}, func(ctx context.Context, a *smarty.Assiser) {
+		txt := fmt.Sprint("Текущее время:", time.Now().Format(time.TimeOnly))
+		a.Print(txt)
+	})
+
+	log.INFO("Starting App")
+	assistent.Start()
+
+	log.INFO("Stop App")
+}
