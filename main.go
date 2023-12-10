@@ -9,16 +9,14 @@ import (
 	"syscall"
 	"time"
 
-	smarthome "pc.assistent/internal/smart-home"
-	socketserver "pc.assistent/internal/socket-server"
-	"pc.assistent/internal/traymenu"
-	"pc.assistent/internal/tts"
+	smarthome "github.com/playmixer/pc.assistent/internal/smart-home"
+	socketserver "github.com/playmixer/pc.assistent/internal/socket-server"
+	"github.com/playmixer/pc.assistent/internal/traymenu"
+	"github.com/playmixer/pc.assistent/internal/tts"
+	"github.com/playmixer/pc.assistent/pkg/smarty"
 
 	"github.com/playmixer/pc.assistent/pkg/logger"
 	voskclient "github.com/playmixer/pc.assistent/pkg/vosk-client"
-
-	// "github.com/playmixer/pc.assistent/pkg/smarty"
-	"pc.assistent/pkg/smarty"
 
 	"github.com/joho/godotenv"
 )

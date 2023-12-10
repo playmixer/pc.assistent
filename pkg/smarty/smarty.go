@@ -3,6 +3,7 @@ package smarty
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -14,8 +15,8 @@ import (
 	"time"
 
 	fuzzy "github.com/paul-mannino/go-fuzzywuzzy"
+	"github.com/playmixer/pc.assistent/pkg/listen"
 	"golang.org/x/exp/slices"
-	"pc.assistent/pkg/listen"
 )
 
 type AssiserEvent int
@@ -436,6 +437,9 @@ func (a *Assiser) newCommandExec(pathFile string, args ...string) CommandFunc {
 }
 
 func (a *Assiser) LoadCommands(filepath string) error {
+	if _, err := os.Stat(filepath); errors.Is(err, os.ErrNotExist) {
+		return err
+	}
 	cByte, err := os.ReadFile(filepath)
 	if err != nil {
 		return err

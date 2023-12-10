@@ -1,14 +1,12 @@
-package smarty_test
+package smarty
 
 import (
 	"context"
 	"testing"
-
-	"pc.assistent/pkg/smarty"
 )
 
 var (
-	assist *smarty.Assiser
+	assist *Assiser
 )
 
 type rcgnz struct{}
@@ -20,17 +18,17 @@ func (r *rcgnz) Recognize(bufWav []byte) (string, error) {
 func init() {
 	ctx := context.TODO()
 	recognize := &rcgnz{}
-	assist = smarty.New(ctx)
+	assist = New(ctx)
 	assist.SetRecognizeCommand(recognize)
 	assist.SetRecognizeName(recognize)
 
-	assist.AddCommand([]string{"тест"}, func(ctx context.Context, a *smarty.Assiser) {})                                          //1
-	assist.AddCommand([]string{"который час", "какое время", "сколько времени"}, func(ctx context.Context, a *smarty.Assiser) {}) //2
-	assist.AddCommand([]string{"включи свет в ванне", "включи в ванной свет"}, func(ctx context.Context, a *smarty.Assiser) {})   //3
-	assist.AddCommand([]string{"выключи свет в ванне", "выключи в ванной свет"}, func(ctx context.Context, a *smarty.Assiser) {}) //4
-	assist.AddCommand([]string{"запусти браузер"}, func(ctx context.Context, a *smarty.Assiser) {})                               //5
-	assist.AddCommand([]string{"включи стим"}, func(ctx context.Context, a *smarty.Assiser) {})                                   //6
-	assist.AddCommand([]string{"отключись", "выключись"}, func(ctx context.Context, a *smarty.Assiser) {})                        //7
+	assist.AddCommand([]string{"тест"}, func(ctx context.Context, a *Assiser) {})                                          //1
+	assist.AddCommand([]string{"который час", "какое время", "сколько времени"}, func(ctx context.Context, a *Assiser) {}) //2
+	assist.AddCommand([]string{"включи свет в ванне", "включи в ванной свет"}, func(ctx context.Context, a *Assiser) {})   //3
+	assist.AddCommand([]string{"выключи свет в ванне", "выключи в ванной свет"}, func(ctx context.Context, a *Assiser) {}) //4
+	assist.AddCommand([]string{"запусти браузер"}, func(ctx context.Context, a *Assiser) {})                               //5
+	assist.AddCommand([]string{"включи стим"}, func(ctx context.Context, a *Assiser) {})                                   //6
+	assist.AddCommand([]string{"отключись", "выключись"}, func(ctx context.Context, a *Assiser) {})                        //7
 }
 
 func TestRotateCommand(t *testing.T) {
@@ -199,7 +197,7 @@ func TestIsFindedNameInText(t *testing.T) {
 	}
 
 	for text, v := range cases {
-		if smarty.IsFindedNameInText(names, text) != v {
+		if IsFindedNameInText(names, text) != v {
 			t.Fatalf("case `%s` is FAILED", text)
 		}
 	}

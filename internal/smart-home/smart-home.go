@@ -1,12 +1,35 @@
 package smarthome
 
-import "errors"
+import (
+	"errors"
+	"os"
+	"strconv"
+)
 
 type TypeSHServiceName string
 
 const (
 	SHTuyaService TypeSHServiceName = "tuya"
 )
+
+type emptySmartHomeApi struct{}
+type emptySmartHomeApiCommand struct{}
+
+func (e *emptySmartHomeApi) GetDevice(device string) GetDeviceResponse {
+	return GetDeviceResponse{}
+}
+
+func (e *emptySmartHomeApi) PostDevice(deviceId string, commands IApiCommand) {
+	return
+}
+
+func (e *emptySmartHomeApi) NewCommand() IApiCommand {
+	return &emptySmartHomeApiCommand{}
+}
+
+func (ec *emptySmartHomeApiCommand) Add(code string, value bool) IApiCommand {
+	return &emptySmartHomeApiCommand{}
+}
 
 type GetDeviceResponse struct {
 	Code    int         `json:"code"`
@@ -35,6 +58,10 @@ type IApi interface {
 }
 
 func FactoryNew(name TypeSHServiceName) (IApi, error) {
+	smartHome, _ := strconv.ParseBool(os.Getenv("SMART_HOME"))
+	if !smartHome {
+		return &emptySmartHomeApi{}, nil
+	}
 	if name == SHTuyaService {
 		return NewTuyaApi(), nil
 	}

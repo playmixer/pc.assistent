@@ -1,7 +1,7 @@
 package sayme
 
 import (
-	"pc.assistent/internal/wavplayer"
+	"github.com/playmixer/pc.assistent/internal/wavplayer"
 )
 
 const (
