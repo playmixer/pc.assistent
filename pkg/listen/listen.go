@@ -7,14 +7,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"strconv"
 	"sync"
 	"time"
 
 	pvrecorder "github.com/Picovoice/pvrecorder/binding/go"
 	"github.com/go-audio/wav"
-	concatwav "github.com/moutend/go-wav"
 )
 
 type logger interface {
@@ -48,12 +46,14 @@ type Listener struct {
 	IsActive   bool
 	StartTime  time.Time
 	sliceCh    chan int
+	device     int
 	service    sync.Mutex
 	sync.Mutex
 }
 
 func New(t time.Duration) *Listener {
 	return &Listener{
+		NameApp:    "Listener",
 		Long:       t,
 		SampleRate: 16000,
 		BitDepth:   16,
@@ -62,6 +62,7 @@ func New(t time.Duration) *Listener {
 		stopCh:     make(chan struct{}),
 		WavCh:      make(chan []byte, 1),
 		sliceCh:    make(chan int, 1),
+		device:     -1,
 		log:        &tLog{},
 	}
 }
@@ -89,6 +90,18 @@ func (l *Listener) SliceRecod() {
 	l.sliceCh <- 1
 }
 
+func (l *Listener) SetMicrophon(name string) error {
+	devices, err := GetMicrophons()
+	if err != nil {
+		return err
+	}
+	if id, ok := devices[name]; ok {
+		l.device = id
+		return nil
+	}
+	return ErrNotFoundDevice
+}
+
 func (l *Listener) Start(ctx context.Context) {
 	go func() {
 		l.service.Lock()
@@ -99,26 +112,11 @@ func (l *Listener) Start(ctx context.Context) {
 		l.StartTime = time.Now()
 		l.IsActive = true
 		l.stopCh = make(chan struct{})
-		// l.WavCh = make(chan []byte, 1)
-		showAudioDevices := false
-		audioDeviceIndex := -1
 		flag.Parse()
 		l.log.DEBUG(fmt.Sprintf(l.NameApp+": pvrecorder.go version: %s", pvrecorder.Version))
 
-		if showAudioDevices {
-			l.log.DEBUG(l.NameApp + ": Printing devices...")
-			if devices, err := pvrecorder.GetAvailableDevices(); err != nil {
-				log.Fatalf(l.NameApp+" Error: %s.\n", err.Error())
-			} else {
-				for i, device := range devices {
-					l.log.DEBUG(fmt.Sprintf(l.NameApp+"index: %d, device name: %s", i, device))
-				}
-			}
-			return
-		}
-
 		recorder := &pvrecorder.PvRecorder{
-			DeviceIndex:         audioDeviceIndex,
+			DeviceIndex:         l.device,
 			FrameLength:         512,
 			BufferedFramesCount: 10,
 		}
@@ -156,22 +154,17 @@ func (l *Listener) Start(ctx context.Context) {
 		for {
 			select {
 			case <-ctx.Done():
-				// l.Lock()
 				l.log.DEBUG(l.NameApp + ": Stopping...")
 				l.WavCh <- outputFile.buf.Bytes()
-				// l.Unlock()
 				break waitLoop
 
 			case <-waitCh:
-				// l.Lock()
 				l.log.DEBUG(l.NameApp + ": Stopping...")
 				l.WavCh <- outputFile.buf.Bytes()
-				// l.Unlock()
 				break waitLoop
 
 			//отрезаем по таймауту
 			case <-delay.C:
-				// l.Lock()
 				l.log.DEBUG(l.NameApp + ": step delay...")
 				outputWav.Close()
 				outputFile.Close()
@@ -182,11 +175,9 @@ func (l *Listener) Start(ctx context.Context) {
 				outputFile = &WriterSeeker{}
 				outputWav = wav.NewEncoder(outputFile, pvrecorder.SampleRate, l.BitDepth, l.NumChans, 1)
 				l.log.DEBUG(l.NameApp + ": ...stop step delay 2")
-				// l.Unlock()
 
 			//отрезаем кусок по команде
 			case <-l.sliceCh:
-				// l.Lock()
 				l.log.DEBUG(l.NameApp+": listener", "slice record")
 				l.log.DEBUG(l.NameApp + ": step slice...")
 				outputWav.Close()
@@ -198,7 +189,6 @@ func (l *Listener) Start(ctx context.Context) {
 				outputFile = &WriterSeeker{}
 				outputWav = wav.NewEncoder(outputFile, pvrecorder.SampleRate, l.BitDepth, l.NumChans, 1)
 				l.log.DEBUG(l.NameApp + ": ...stop step slice 2")
-				// l.Unlock()
 
 			default:
 				pcm, err := recorder.Read()
@@ -282,106 +272,4 @@ func (ws *WriterSeeker) Close() error {
 // BytesReader returns a *bytes.Reader. Use it when you need a reader that implements the io.ReadSeeker interface
 func (ws *WriterSeeker) BytesReader() *bytes.Reader {
 	return bytes.NewReader(ws.buf.Bytes())
-}
-
-func IsWavEmpty(data []byte) (bool, error) {
-	// Проверяем, что у нас есть достаточно данных для анализа заголовка WAV
-	if len(data) < 44 {
-		return false, fmt.Errorf("недостаточно данных для анализа заголовка WAV")
-	}
-
-	// Проверяем сигнатуру "RIFF" и "WAVE"
-	if string(data[0:4]) != "RIFF" || string(data[8:12]) != "WAVE" {
-		return false, fmt.Errorf("неверная сигнатура WAV")
-	}
-
-	// Получаем формат аудио из заголовка WAV
-	audioFormat := int(data[20]) | int(data[21])<<8
-
-	// Проверяем, что формат аудио - PCM
-	if audioFormat != 1 {
-		return false, fmt.Errorf("поддерживаются только файлы PCM")
-	}
-
-	// Получаем число каналов из заголовка WAV
-	numChannels := int(data[22]) | int(data[23])<<8
-
-	// Получаем битность из заголовка WAV
-	bitsPerSample := int(data[34]) | int(data[35])<<8
-
-	// Вычисляем размер блока данных сэмплов
-	blockSize := (bitsPerSample / 8) * numChannels
-
-	// Анализируем данные сэмплов
-	for i := 44; i < len(data); i += blockSize {
-		for j := 0; j < blockSize; j++ {
-			if data[i+j] != 0 {
-				return false, nil
-			}
-		}
-	}
-
-	return true, nil
-}
-
-func IsSilent(data []byte) (bool, error) {
-	// Проверяем, что у нас есть достаточно данных для анализа заголовка WAV
-	if len(data) < 44 {
-		return false, fmt.Errorf("недостаточно данных для анализа заголовка WAV")
-	}
-
-	// Анализируем данные сэмплов
-	for i := 44; i < len(data); i += 2 {
-		// Преобразуем два байта в 16-битное число
-		sample := int16(data[i]) | int16(data[i+1])<<8
-
-		// Проверяем, является ли амплитуда нулевой
-		// fmt.Println("sample", sample, int16(data[i]), int16(data[i+1])<<8)
-		if sample != 0 {
-			return false, nil
-		}
-	}
-
-	return true, nil
-}
-
-func IsVoiceless(data []byte, minSample, maxSample int16) (bool, int16, error) {
-	// Проверяем, что у нас есть достаточно данных для анализа заголовка WAV
-	if len(data) < 44 {
-		return false, 0, fmt.Errorf("недостаточно данных для анализа заголовка WAV")
-	}
-
-	// Анализируем данные сэмплов
-	for i := 44; i < len(data); i += 2 {
-		// Преобразуем два байта в 16-битное число
-		sample := int16(data[i]) | int16(data[i+1])<<8
-
-		// Проверяем, является ли амплитуда нулевой
-		// fmt.Println("sample", sample)
-		if sample > minSample && sample < maxSample {
-			return true, sample, nil
-		}
-	}
-
-	return false, 0, nil
-}
-
-func ConcatWav(i1, i2 []byte) []byte {
-
-	// Create wav.File.
-	a := &concatwav.File{}
-	b := &concatwav.File{}
-
-	// Unmarshal input1.wav and input2.wav.
-	concatwav.Unmarshal(i1, a)
-	concatwav.Unmarshal(i2, b)
-
-	// Add input2.wav to input1.wav.
-	c, _ := concatwav.New(a.SamplesPerSec(), a.BitsPerSample(), a.Channels())
-	io.Copy(c, a)
-	io.Copy(c, b)
-
-	// Marshal input1.wav and save result.
-	file, _ := concatwav.Marshal(c)
-	return file
 }
