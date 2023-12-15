@@ -9,8 +9,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/playmixer/pc.assistent/internal/api"
+	"github.com/playmixer/pc.assistent/internal/httpserver"
 	smarthome "github.com/playmixer/pc.assistent/internal/smart-home"
-	socketserver "github.com/playmixer/pc.assistent/internal/socket-server"
+	"github.com/playmixer/pc.assistent/internal/store"
 	"github.com/playmixer/pc.assistent/internal/traymenu"
 	"github.com/playmixer/pc.assistent/internal/tts"
 	"github.com/playmixer/pc.assistent/pkg/smarty"
@@ -44,14 +46,25 @@ func main() {
 	log = logger.New("app")
 	log.LogLevel = logger.INFO
 
+	log.INFO("Starting App")
 	// Загрузка .env
 	err := godotenv.Load()
 	if err != nil {
 		log.ERROR("Error loading .env file")
 	}
 
+	//store
+	db, err := store.Init("data.ojs")
+	if err != nil {
+		log.ERROR(err.Error())
+		panic(err)
+	}
+
 	// Распознование речи
-	recognizer := voskclient.New(log)
+	recognizer := voskclient.New()
+	rLog := logger.New("recognize")
+	rLog.LogLevel = logger.INFO
+	recognizer.SetLogger(rLog)
 
 	// Озвучка текста
 	speach := tts.New()
@@ -69,14 +82,29 @@ func main() {
 	})
 	assistent.SetLogger(log)
 	assistent.SetTTS(speach.Voice)
-	assistent.LoadCommands("./commands.json")
+	// assistent.LoadCommands("./commands.json")
 
 	// API smart home
-	shome, err := smarthome.FactoryNew(smarthome.SHTuyaService)
+	sHome, err := smarthome.FactoryNew(smarthome.SHTuyaService)
 	if err != nil {
 		log.ERROR(err.Error())
 	}
 
+	// Загрузка команд из хранилища
+	log.INFO("Loading command from store...")
+	_cmd, err := db.Open(store.Command{}).All()
+	if err != nil {
+		log.ERROR(err.Error())
+	}
+	for _, v := range _cmd.(map[string]store.Command) {
+		log.INFO(fmt.Sprintf("\t upload command: %s", v.Commands[0]))
+		assistent.AddGenCommand(smarty.ObjectCommand{
+			Type:     smarty.TypeCommand(v.Type),
+			Path:     v.Path,
+			Args:     v.Args,
+			Commands: v.Commands,
+		})
+	}
 	// Голосовые команды
 	assistent.AddCommand([]string{"который час", "сколько время"}, func(ctx context.Context, a *smarty.Assiser) {
 		txt := fmt.Sprint("Текущее время:", time.Now().Format(time.TimeOnly))
@@ -87,24 +115,6 @@ func main() {
 		a.Print("Отключаюсь")
 		// log.ERROR(a.Voice("Отключаюсь").Error())
 		cancel()
-	})
-	assistent.AddCommand([]string{"включи свет в ванне", "включи свет в ванной"}, func(ctx context.Context, a *smarty.Assiser) {
-		shome.PostDevice("787166238cce4e149625", shome.NewCommand().Add("switch_1", true))
-	})
-	assistent.AddCommand([]string{"выключи свет в ванне", "выключи свет в ванной"}, func(ctx context.Context, a *smarty.Assiser) {
-		shome.PostDevice("787166238cce4e149625", shome.NewCommand().Add("switch_1", false))
-	})
-	assistent.AddCommand([]string{"включи свет в туалете"}, func(ctx context.Context, a *smarty.Assiser) {
-		shome.PostDevice("787166238cce4e149625", shome.NewCommand().Add("switch_2", true))
-	})
-	assistent.AddCommand([]string{"выключи свет в туалете"}, func(ctx context.Context, a *smarty.Assiser) {
-		shome.PostDevice("787166238cce4e149625", shome.NewCommand().Add("switch_2", false))
-	})
-	assistent.AddCommand([]string{"включи везде свет", "включи весь свет"}, func(ctx context.Context, a *smarty.Assiser) {
-		shome.PostDevice("787166238cce4e149625", shome.NewCommand().Add("switch_1", true).Add("switch_2", true))
-	})
-	assistent.AddCommand([]string{"выключи везде свет", "выключи весь свет", "выключи свет везде"}, func(ctx context.Context, a *smarty.Assiser) {
-		shome.PostDevice("787166238cce4e149625", shome.NewCommand().Add("switch_1", false).Add("switch_2", false))
 	})
 	assistent.AddCommand([]string{"счет", "счёт"}, func(ctx context.Context, a *smarty.Assiser) {
 		ticker := time.NewTicker(time.Second)
@@ -124,9 +134,20 @@ func main() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
 
 	// Сокет сервер
-	socket := socketserver.StartServer(func(message []byte) {
-		fmt.Println(string(message))
-	})
+	httpPort := Getenv("HTTP_SERVER_PORT", "8080")
+	server := httpserver.New(httpPort)
+	server.SetWSHandle(api.WSHandle)
+	r := server.GetRoute()
+	v0 := r.Group("/api/v0")
+	{
+		v0.GET("/command", api.GetCommands)
+		v0.POST("/command", api.NewCommand)
+		v0.DELETE("/command", api.DeleteCommand)
+		v0.PUT("/command", api.UpdateCommand)
+	}
+
+	server.Start()
+	log.INFO("Start web server :" + httpPort)
 
 	// События асистента
 	go func() {
@@ -156,15 +177,24 @@ func main() {
 					log.INFO("Event:", "Run command")
 				}
 
-				socket.WriteMessage(MarshalSocketSendEvent(int(e)))
+				server.WriteMessage(MarshalSocketSendEvent(int(e)))
 			}
 		}
 	}()
 
-	log.INFO("Starting App")
+	log.INFO("Starting Listener")
 	assistent.Start()
 
 	log.INFO("Stoping App...")
-	time.Sleep(time.Second * 1)
+	time.Sleep(time.Second * 3)
 	log.INFO("Stop App")
+}
+
+func Getenv(key string, def string) string {
+	val := os.Getenv(key)
+	if val != "" {
+		return val
+	}
+
+	return def
 }

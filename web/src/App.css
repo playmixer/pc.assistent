@@ -2,6 +2,7 @@
   text-align: center;
   height: 100vh;
   background-color: rgb(29, 53, 119);
+  color: white;
 }
 
 .App.disconnected {
@@ -12,7 +13,7 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100vh;
+  height: calc(100% - 60px);
 }
 
 .box-effect.cmd-exec {

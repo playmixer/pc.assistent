@@ -1,4 +1,8 @@
+.vscode
+
 .env
 logs/*
 media/*
 *.exe
+
+data.ojs
