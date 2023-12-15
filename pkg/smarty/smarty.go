@@ -174,7 +174,7 @@ func (a *Assiser) runCommand(cmd string) {
 	if found {
 		a.log.DEBUG("Run command", cmd)
 		a.PostSignalEvent(AEApplyCommand)
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(a.ctx)
 		a.commands[i].Context = ctx
 		a.commands[i].Cancel = cancel
 		go func() {
@@ -299,7 +299,7 @@ func (a *Assiser) Start() {
 		return
 	}
 
-	ctx, cancel := context.WithCancel(context.Background()) //вся программа
+	ctx, cancel := context.WithCancel(a.ctx) //вся программа
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
@@ -315,7 +315,7 @@ func (a *Assiser) Start() {
 	a.AddCommand([]string{"стоп", "stop"}, func(ctx context.Context, a *Assiser) {
 		for i := range a.commands {
 			if a.commands[i].IsActive {
-				log.INFO("Стоп", fmt.Sprint(a.commands[i]))
+				log.INFO("Стоп", fmt.Sprint(a.commands[i].Commands[0]))
 				a.commands[i].Cancel()
 			}
 		}
@@ -411,14 +411,14 @@ func (a *Assiser) Voice(text string) error {
 	return a.voiceFunc(text)
 }
 
-type typeCommand string
+type TypeCommand string
 
 const (
-	tcExec typeCommand = "exec"
+	tcExec TypeCommand = "exec"
 )
 
-type JsonCommand struct {
-	Type     typeCommand `json:"type"`
+type ObjectCommand struct {
+	Type     TypeCommand `json:"type"`
 	Path     string      `json:"path"`
 	Args     []string    `json:"args"`
 	Commands []string    `json:"commands"`
@@ -445,7 +445,7 @@ func (a *Assiser) LoadCommands(filepath string) error {
 		return err
 	}
 
-	var data []JsonCommand
+	var data []ObjectCommand
 	err = json.Unmarshal(cByte, &data)
 	if err != nil {
 		return err
@@ -459,6 +459,14 @@ func (a *Assiser) LoadCommands(filepath string) error {
 		a.AddCommand(data[i].Commands, f)
 	}
 	return nil
+}
+
+func (a *Assiser) AddGenCommand(data ObjectCommand) {
+	var f CommandFunc
+	if data.Type == tcExec {
+		f = a.newCommandExec(data.Path, data.Args...)
+	}
+	a.AddCommand(data.Commands, f)
 }
 
 func IsFindedNameInText(names []string, text string) bool {
