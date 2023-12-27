@@ -17,7 +17,8 @@ func main() {
 	log := logger.New("app")
 	log.LogLevel = logger.INFO
 
-	recognizer := voskclient.New(log)
+	recognizer := voskclient.New()
+	recognizer.SetLogger(log)
 
 	assistent := smarty.New(ctx)
 	assistent.SetRecognizeCommand(recognizer)
