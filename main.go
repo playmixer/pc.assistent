@@ -9,19 +9,23 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/playmixer/pc.assistent/internal/api"
-	"github.com/playmixer/pc.assistent/internal/httpserver"
-	smarthome "github.com/playmixer/pc.assistent/internal/smart-home"
-	"github.com/playmixer/pc.assistent/internal/store"
-	"github.com/playmixer/pc.assistent/internal/traymenu"
-	"github.com/playmixer/pc.assistent/internal/tts"
+	"github.com/gin-gonic/gin"
+	"github.com/playmixer/pc.assistent/pkg/listen"
+	"github.com/playmixer/pc.assistent/pkg/player"
 	"github.com/playmixer/pc.assistent/pkg/smarty"
+	"github.com/playmixer/pc.assistent/pkg/yandex"
 
 	"github.com/playmixer/pc.assistent/pkg/logger"
 	voskclient "github.com/playmixer/pc.assistent/pkg/vosk-client"
 
 	"github.com/joho/godotenv"
 )
+
+/**
+ TODO
+ - перезагрузка команд
+
+**/
 
 var (
 	log *logger.Logger
@@ -54,7 +58,7 @@ func main() {
 	}
 
 	//store
-	db, err := store.Init("data.ojs")
+	_, err = StoreInit(".storage")
 	if err != nil {
 		log.ERROR(err.Error())
 		panic(err)
@@ -67,10 +71,7 @@ func main() {
 	recognizer.SetLogger(rLog)
 
 	// Озвучка текста
-	speach := tts.New()
-
-	// Иконка в трее
-	traymenu.Init()
+	// speach := tts.New(tts.TTSProviderYandex)
 
 	// Asisstent listener
 	assistent := smarty.New(ctx)
@@ -81,22 +82,28 @@ func main() {
 		ListenTimeout: time.Second * 1,
 	})
 	assistent.SetLogger(log)
-	assistent.SetTTS(speach.Voice)
-	// assistent.LoadCommands("./commands.json")
 
-	// API smart home
-	sHome, err := smarthome.FactoryNew(smarthome.SHTuyaService)
-	if err != nil {
-		log.ERROR(err.Error())
-	}
+	// Озвучка текста
+	assistent.SetTTS(func(text string) error {
+		ydx := yandex.New(os.Getenv("YANDEX_API_KEY"), os.Getenv("YANDEX_FOLDER_ID"))
+
+		req := ydx.Speach(text)
+		b, err := req.Post()
+		if err != nil {
+			return err
+		}
+
+		player.PlayMp3FromBytes(b)
+		return nil
+	})
 
 	// Загрузка команд из хранилища
 	log.INFO("Loading command from store...")
-	_cmd, err := db.Open(store.Command{}).All()
+	_cmd, err := Store.Open(StoreCommand{}).All()
 	if err != nil {
 		log.ERROR(err.Error())
 	}
-	for _, v := range _cmd.(map[string]store.Command) {
+	for _, v := range _cmd.(map[string]StoreCommand) {
 		log.INFO(fmt.Sprintf("\t upload command: %s", v.Commands[0]))
 		assistent.AddGenCommand(smarty.ObjectCommand{
 			Type:     smarty.TypeCommand(v.Type),
@@ -107,8 +114,12 @@ func main() {
 	}
 	// Голосовые команды
 	assistent.AddCommand([]string{"который час", "сколько время"}, func(ctx context.Context, a *smarty.Assiser) {
-		txt := fmt.Sprint("Текущее время:", time.Now().Format(time.TimeOnly))
+		txt := fmt.Sprint("Текущее время:", time.Now().Format("15:04"))
 		a.Print(txt)
+		err := a.Voice(txt)
+		if err != nil {
+			log.ERROR(err.Error())
+		}
 		// log.ERROR(a.Voice(txt).Error())
 	})
 	assistent.AddCommand([]string{"отключись", "выключись"}, func(ctx context.Context, a *smarty.Assiser) {
@@ -116,6 +127,7 @@ func main() {
 		// log.ERROR(a.Voice("Отключаюсь").Error())
 		cancel()
 	})
+
 	assistent.AddCommand([]string{"счет", "счёт"}, func(ctx context.Context, a *smarty.Assiser) {
 		ticker := time.NewTicker(time.Second)
 		counter := 0
@@ -134,16 +146,29 @@ func main() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
 
 	// Сокет сервер
-	httpPort := Getenv("HTTP_SERVER_PORT", "8080")
-	server := httpserver.New(httpPort)
-	server.SetWSHandle(api.WSHandle)
+	httpPort := smarty.Getenv("HTTP_SERVER_PORT", "8080")
+	server := HttpServerNew(httpPort)
+	server.SetWSHandle(WSHandle)
 	r := server.GetRoute()
+	r.Use(CORSMiddleware())
 	v0 := r.Group("/api/v0")
 	{
-		v0.GET("/command", api.GetCommands)
-		v0.POST("/command", api.NewCommand)
-		v0.DELETE("/command", api.DeleteCommand)
-		v0.PUT("/command", api.UpdateCommand)
+		v0.GET("/command", httpGetCommands)
+		v0.POST("/command", httpNewCommand)
+		v0.DELETE("/command", httpDeleteCommand)
+		v0.PUT("/command", httpUpdateCommand)
+		v0.GET("/info", func(ctx *gin.Context) {
+
+			result := map[string]interface{}{
+				"names":    assistent.Names,
+				"commands": assistent.GetCommands(),
+				"deviceId": assistent.GetRecorder().DeviceId,
+			}
+
+			result["devices"], _ = listen.GetMicrophons()
+
+			ctx.JSON(200, result)
+		})
 	}
 
 	server.Start()
@@ -165,13 +190,9 @@ func main() {
 				log.DEBUG("Event", fmt.Sprint(e))
 				if e == smarty.AEStartListeningCommand {
 					log.INFO("Event:", "Listening command")
-					// sayme.New().SoundStart()
-					traymenu.SetIcon(".\\command.ico")
 				}
 				if e == smarty.AEStartListeningName {
 					log.INFO("Event:", "Listening name")
-					// sayme.New().SoundEnd()
-					traymenu.SetIconDefault()
 				}
 				if e == smarty.AEApplyCommand {
 					log.INFO("Event:", "Run command")
@@ -188,13 +209,4 @@ func main() {
 	log.INFO("Stoping App...")
 	time.Sleep(time.Second * 3)
 	log.INFO("Stop App")
-}
-
-func Getenv(key string, def string) string {
-	val := os.Getenv(key)
-	if val != "" {
-		return val
-	}
-
-	return def
 }
