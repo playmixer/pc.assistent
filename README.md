@@ -7,6 +7,7 @@ go get github.com/playmixer/pc.assistent
 
 
 ## DEMO
+[demo](demo/main.go)
 
 ### Создаём Dockerfile для запуска сервера распознования речи
 ```docker
@@ -55,7 +56,8 @@ func main() {
 	log := logger.New("app")
 	log.LogLevel = logger.INFO
 
-	recognizer := voskclient.New(log)
+	recognizer := voskclient.New()
+	recognizer.SetLogger(log)
 
 	assistent := smarty.New(ctx)
 	assistent.SetRecognizeCommand(recognizer)
@@ -82,4 +84,88 @@ func main() {
 ### Запускаем
 ```golang
 go run .
+```
+*Произнести команду в микрофон **"альфа который час"***
+
+### Настроить голос асистенту через Yandex API
+```golang
+	...
+	"github.com/playmixer/pc.assistent/pkg/yandex"
+	"github.com/playmixer/pc.assistent/pkg/player"
+	...
+	assistent.SetTTS(func(text string) error {
+		ydx := yandex.New(os.Getenv("YANDEX_API_KEY"), os.Getenv("YANDEX_FOLDER_ID"))
+
+		req := ydx.Speach(text)
+		b, err := req.Post()
+		if err != nil {
+			return err
+		}
+
+		player.PlayMp3FromBytes(b)
+		return nil
+	})
+	...
+
+```
+
+## Добавить команду из набора
+- добавить API ключ *openweathermap.org* в **.env**
+
+- получить ключь можно на https://home.openweathermap.org/api_keys
+```env
+OPENWEATHER_API_KEY={api key}
+```
+- подробное описание параметров на https://openweathermap.org/current
+#### Пример:
+```golang
+	...
+	// Текущая погода
+	assistent.AddGenCommand(smarty.ObjectCommand{
+			Type:     smarty.TypeCommand("tool"),
+			Path:     "weather.current",
+			Args:     []string{
+				"lat=54.974897",
+				"lon=73.4777",
+				"units=metric",
+				"lang=ru"
+			},
+			Commands: []string{
+				"какая сейчас погода",
+			},
+		})
+	// или альтернативный вариант	
+	assistent.AddGenCommand(smarty.ObjectCommand{
+			Type:     smarty.TypeCommand("tool"),
+			Path:     "weather.current",
+			Args:     []string{
+				"q=Омск",
+				"units=metric",
+				"lang=ru"
+			},
+			Commands: []string{
+				"какая сейчас погода",
+			},
+		})
+	...
+
+```
+
+## Добавить умный выключатель Tuya
+```golang
+	...
+	assistent.AddGenCommand(smarty.ObjectCommand{
+			Type:     smarty.TypeCommand("tool"),
+			Path:     "smarthome.tuya.switch",
+			Args:     []string{
+				"deviceid=787166238ccb3a259625",
+				"code=switch_1",
+				"value=true",
+			},
+			Commands: []string{
+				"включи свет",
+			},
+		})
+	...
+	
 ```
