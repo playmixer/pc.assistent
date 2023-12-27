@@ -2,6 +2,8 @@ package smarty
 
 import (
 	"context"
+	"fmt"
+	"regexp"
 	"testing"
 )
 
@@ -177,7 +179,7 @@ func TestRotateCommand2(t *testing.T) {
 		testRotate{"включи стин", 0, false},                   //14
 	}
 	for idx, c := range cases {
-		if i, found := assist.RotateCommand2(c.cmd); i != c.i || found != c.found {
+		if i, found := assist.ComparingCommand(c.cmd); i != c.i || found != c.found {
 			t.Fatalf("case#%v idx=%v found=%v %s", idx, i, found, c.cmd)
 		}
 	}
@@ -200,5 +202,24 @@ func TestIsFindedNameInText(t *testing.T) {
 		if IsFindedNameInText(names, text) != v {
 			t.Fatalf("case `%s` is FAILED", text)
 		}
+	}
+}
+
+func TestMatchCommand(t *testing.T) {
+	cases := map[string]bool{
+		"^поставь будильник на (?P<time>\\d) (?P<range>.*)$": true,
+	}
+
+	for text, _ := range cases {
+		r := regexp.MustCompile(text)
+		matches := r.FindStringSubmatch("поставь будильник на 2 часа")
+
+		params := make(map[string]string)
+		for i, name := range r.SubexpNames() {
+			if i > 0 && i <= len(matches) {
+				params[name] = matches[i]
+			}
+		}
+		fmt.Println(params)
 	}
 }

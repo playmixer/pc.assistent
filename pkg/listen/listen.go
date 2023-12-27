@@ -46,7 +46,7 @@ type Listener struct {
 	IsActive   bool
 	StartTime  time.Time
 	sliceCh    chan int
-	device     int
+	DeviceId   int
 	service    sync.Mutex
 	sync.Mutex
 }
@@ -62,7 +62,7 @@ func New(t time.Duration) *Listener {
 		stopCh:     make(chan struct{}),
 		WavCh:      make(chan []byte, 1),
 		sliceCh:    make(chan int, 1),
-		device:     -1,
+		DeviceId:   -1,
 		log:        &tLog{},
 	}
 }
@@ -96,7 +96,7 @@ func (l *Listener) SetMicrophon(name string) error {
 		return err
 	}
 	if id, ok := devices[name]; ok {
-		l.device = id
+		l.DeviceId = id
 		return nil
 	}
 	return ErrNotFoundDevice
@@ -116,7 +116,7 @@ func (l *Listener) Start(ctx context.Context) {
 		l.log.DEBUG(fmt.Sprintf(l.NameApp+": pvrecorder.go version: %s", pvrecorder.Version))
 
 		recorder := &pvrecorder.PvRecorder{
-			DeviceIndex:         l.device,
+			DeviceIndex:         l.DeviceId,
 			FrameLength:         512,
 			BufferedFramesCount: 10,
 		}

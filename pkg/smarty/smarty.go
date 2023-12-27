@@ -19,6 +19,16 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+/**
+ TODO
+ feature
+
+ - распознование по регулярке
+ - передача параметров из команды
+ - сеттер разпознования команды
+
+**/
+
 type AssiserEvent int
 
 const (
@@ -55,25 +65,6 @@ func (l *logger) DEBUG(v ...string) {
 	log.Println("DEBUG", v)
 }
 
-func any2ChanResult(ctx context.Context, c1 chan []byte, c2 chan []byte) chan []byte {
-	result := make(chan []byte, 1)
-	go func() {
-	waitChan2:
-		for {
-			select {
-			case <-ctx.Done():
-				break waitChan2
-			case r := <-c1:
-				result <- r
-			case r := <-c2:
-				result <- r
-			}
-
-		}
-	}()
-	return result
-}
-
 type CommandFunc func(ctx context.Context, a *Assiser)
 
 type CommandStruct struct {
@@ -98,6 +89,10 @@ type wavBuffer struct {
 	text string
 }
 
+type assistentStatus struct {
+	LastCommand string
+}
+
 type Assiser struct {
 	ctx              context.Context
 	log              iLogger
@@ -108,29 +103,40 @@ type Assiser struct {
 	recognizeCommand IReacognize
 	recognizeName    IReacognize
 	VoiceEnable      bool
+	VoiceErrorEnable bool
 	voiceFunc        func(text string) error
+	Status           assistentStatus
 	wavBuffer        []wavBuffer
+	recorder         *listen.Listener
 	sync.Mutex
 }
 
 func New(ctx context.Context) *Assiser {
 
 	a := &Assiser{
-		log:           &logger{},
-		ctx:           ctx,
-		Names:         []string{"альфа", "alpha"},
-		ListenTimeout: time.Second * 2,
-		commands:      make([]CommandStruct, 0),
-		eventChan:     make(chan AssiserEvent, 1),
-		VoiceEnable:   true,
-		voiceFunc:     func(text string) error { return nil },
-		wavBuffer:     make([]wavBuffer, LEN_WAV_BUFF),
+		log:              &logger{},
+		ctx:              ctx,
+		Names:            []string{"альфа", "alpha"},
+		ListenTimeout:    time.Second * 2,
+		commands:         make([]CommandStruct, 0),
+		eventChan:        make(chan AssiserEvent, 1),
+		VoiceEnable:      true,
+		VoiceErrorEnable: true,
+		voiceFunc:        func(text string) error { return nil },
+		wavBuffer:        make([]wavBuffer, LEN_WAV_BUFF),
+		Status: assistentStatus{
+			LastCommand: "",
+		},
 	}
 
 	return a
 }
 
-func (a *Assiser) AddWavToBuf(w *wavBuffer) *[]wavBuffer {
+func (a *Assiser) GetRecorder() *listen.Listener {
+	return a.recorder
+}
+
+func (a *Assiser) addWavToBuf(w *wavBuffer) *[]wavBuffer {
 	a.Lock()
 	defer a.Unlock()
 	a.wavBuffer = append([]wavBuffer{*w}, a.wavBuffer[:LEN_WAV_BUFF-1]...)
@@ -158,6 +164,15 @@ func (a *Assiser) SetRecognizeName(recognize IReacognize) {
 	a.recognizeName = recognize
 }
 
+func (a *Assiser) GetCommands() [][]string {
+	result := [][]string{}
+	for i := range a.commands {
+		result = append(result, a.commands[i].Commands)
+	}
+
+	return result
+}
+
 func (a *Assiser) AddCommand(cmd []string, f CommandFunc) {
 	a.commands = append(a.commands, CommandStruct{
 		Commands: cmd,
@@ -169,9 +184,10 @@ func (a *Assiser) runCommand(cmd string) {
 	a.Lock()
 	defer a.Unlock()
 	cmd = CleanCommandFromName(a.Names, cmd)
-	i, found := a.RotateCommand2(cmd)
+	i, found := a.ComparingCommand(cmd)
 	a.log.DEBUG("rotate command", cmd, fmt.Sprint(i), fmt.Sprint(found))
 	if found {
+		a.Status.LastCommand = cmd
 		a.log.DEBUG("Run command", cmd)
 		a.PostSignalEvent(AEApplyCommand)
 		ctx, cancel := context.WithCancel(a.ctx)
@@ -268,7 +284,7 @@ func (a *Assiser) FoundCommandByRatio(talk string) (index, ratio int, founded bo
 	return idx, ratio, founded
 }
 
-func (a *Assiser) RotateCommand2(talk string) (index int, found bool) {
+func (a *Assiser) ComparingCommand(talk string) (index int, found bool) {
 	var idx int = 0
 	found = false
 	t, tv, tf := a.FoundCommandByToken(talk)
@@ -306,11 +322,11 @@ func (a *Assiser) Start() {
 
 	// слушаем имя 1ый поток
 	log.INFO("Starting listen. Stram #1 ")
-	record := listen.New(a.ListenTimeout)
-	record.SetName("Record")
-	record.SetLogger(log)
-	record.Start(ctx)
-	defer record.Stop()
+	a.recorder = listen.New(a.ListenTimeout)
+	a.recorder.SetName("Record")
+	a.recorder.SetLogger(log)
+	a.recorder.Start(ctx)
+	defer a.recorder.Stop()
 
 	a.AddCommand([]string{"стоп", "stop"}, func(ctx context.Context, a *Assiser) {
 		for i := range a.commands {
@@ -339,13 +355,13 @@ waitFor:
 			cancel()
 			break waitFor
 
-		case s := <-record.WavCh:
+		case s := <-a.recorder.WavCh:
 			log.DEBUG("smarty read from wav chanel")
 			txt, err := a.recognizeName.Recognize(s)
 			if err != nil {
 				log.ERROR(err.Error())
 			}
-			a.AddWavToBuf(&wavBuffer{buf: &s, text: txt})
+			a.addWavToBuf(&wavBuffer{buf: &s, text: txt})
 			if txt != "" {
 				notEmptyMessageCounter += 1
 				emptyMessageCounter = 0
@@ -411,10 +427,19 @@ func (a *Assiser) Voice(text string) error {
 	return a.voiceFunc(text)
 }
 
+func (a *Assiser) VoiceError(text string) error {
+	if !a.VoiceErrorEnable {
+		return nil
+	}
+
+	return a.Voice(text)
+}
+
 type TypeCommand string
 
 const (
 	tcExec TypeCommand = "exec"
+	tcTool TypeCommand = "tool"
 )
 
 type ObjectCommand struct {
@@ -431,7 +456,10 @@ func (a *Assiser) newCommandExec(pathFile string, args ...string) CommandFunc {
 
 	return func(ctx context.Context, a *Assiser) {
 		go func() {
-			exec.Command(pathFile, args...).Run()
+			err := exec.Command(pathFile, args...).Run()
+			if err != nil {
+				a.log.ERROR(pathFile + " " + strings.Join(args, " ") + " error: " + err.Error())
+			}
 		}()
 	}
 }
@@ -451,22 +479,24 @@ func (a *Assiser) LoadCommands(filepath string) error {
 		return err
 	}
 
-	for i, _ := range data {
-		var f CommandFunc
-		if data[i].Type == tcExec {
-			f = a.newCommandExec(data[i].Path, data[i].Args...)
-		}
-		a.AddCommand(data[i].Commands, f)
+	for i := range data {
+		a.AddGenCommand(data[i])
 	}
 	return nil
 }
 
 func (a *Assiser) AddGenCommand(data ObjectCommand) {
+	a.log.DEBUG(fmt.Sprintf("add command %s %s %s %s", strings.Join(data.Commands, "|"), data.Type, data.Path, strings.Join(data.Args, "|")))
 	var f CommandFunc
 	if data.Type == tcExec {
 		f = a.newCommandExec(data.Path, data.Args...)
 	}
-	a.AddCommand(data.Commands, f)
+	if data.Type == tcTool {
+		f = a.newCommandTool(data.Path, data.Args)
+	}
+	if f != nil {
+		a.AddCommand(data.Commands, f)
+	}
 }
 
 func IsFindedNameInText(names []string, text string) bool {

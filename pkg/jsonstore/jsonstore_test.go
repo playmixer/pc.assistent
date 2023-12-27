@@ -9,11 +9,11 @@ import (
 var (
 	db, _                 = New("dataTest")
 	testCase []TestStruct = []TestStruct{
-		TestStruct{"test", "nameT", 2},
-		TestStruct{"test1", "name1", 5},
-		TestStruct{"t1", "n1", 1},
-		TestStruct{"t2", "n2", 2},
-		TestStruct{"t1", "n111", 11},
+		{"test", "nameT", 2},
+		{"test1", "name1", 5},
+		{"t1", "n1", 1},
+		{"t2", "n2", 2},
+		{"t1", "n111", 11},
 	}
 )
 

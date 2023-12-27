@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 )
 
 const (
 	URIOAuthToken  = "https://iam.api.cloud.yandex.net/iam/v1/tokens"
 	URIRecognizeV1 = "https://stt.api.cloud.yandex.net/speech/v1/stt:recognize"
+	URISpeachV1    = "https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize"
 )
 
 type Lang string
@@ -36,11 +38,43 @@ const (
 	LngUZ   Lang = "uz-UZ" //узбекский (латиница)
 )
 
+type Voice string
+
+const (
+	VoiceAlena     Voice = "alena"     //(по умолчанию)	Ж	(по умолчанию) нейтральная — neutral радостная — good v1, v3
+	VoiceFilipp    Voice = "filipp"    //	M	—	v1, v3 	Voiceermil = "ermil" //	M	(по умолчанию) нейтральный — neutral радостный — good	v1, v3
+	VoiceJane      Voice = "jane"      //	Ж	(по умолчанию) нейтральная — neutral радостная — good 	раздраженная — evil	v1, v3
+	VoiceMadirus   Voice = "madirus"   //	M	—	v1, v3 	Voiceomazh = "omazh" //	Ж	(по умолчанию) нейтральная — neutral раздраженная — evil	v1, v3
+	VoiceZahar     Voice = "zahar"     //	M	(по умолчанию) нейтральный — neutral радостный — good	v1, v3
+	VoiceDasha     Voice = "dasha"     //	Ж	(по умолчанию) нейтральная — neutral радостная — good 	дружелюбная — friendly	v3
+	VoiceJulia     Voice = "julia"     //	Ж	(по умолчанию) нейтральная — neutral строгая — strict	v3
+	VoiceLera      Voice = "lera"      //	Ж	(по умолчанию) нейтральная — neutral дружелюбная — friendly	v3
+	VoiceMasha     Voice = "masha"     //	Ж	(по умолчанию) радостная — good строгая — strict дружелюбная — friendly	v3
+	VoiceMarina    Voice = "marina"    //	Ж	(по умолчанию) нейтральная — neutral шепот — whisper дружелюбная — friendly	v3
+	VoiceAlexander Voice = "alexander" //	M	(по умолчанию) нейтральный — neutral радостный — good	v3
+	VoiceKirill    Voice = "kirill"    //	M	(по умолчанию) нейтральный — neutral строгий — strict радостный — good	v3
+	VoiceAnton     Voice = "anton"     //	M	(по умолчанию) нейтральный — neutral радостный — good	v3
+)
+
+type Emotion string
+
+const (
+	EmotionModer    Emotion = "modern"
+	EmotionClassic  Emotion = "classic"
+	EmotionNeutral  Emotion = "neutral"
+	EmotionGood     Emotion = "good"
+	EmotionEvil     Emotion = "evil"
+	EmotionFriendly Emotion = "friendly"
+	EmotionStrict   Emotion = "strict"
+	EmotionWisper   Emotion = "whisper"
+)
+
 type Format string
 
 const (
 	FormatLPCM Format = "lpcm"
 	FormatOGG  Format = "oggopus"
+	FormatMP3  Format = "mp3"
 )
 
 type YDX struct {
@@ -120,20 +154,28 @@ func (y *YDX) UpdIamToken() error {
 	return nil
 }
 
-func (y *YDX) postRequest(url string, headers map[string]string, body interface{}) ([]byte, error) {
+func (y *YDX) postRequest(uri string, headers map[string]string, body []byte, request map[string]string) ([]byte, error) {
 	var result []byte
 
-	dataByte, err := json.Marshal(body)
+	if request != nil {
+		baseUrl, err := url.Parse(uri)
+		if err != nil {
+			return nil, err
+		}
+		params := url.Values{}
+		for k, v := range request {
+			params.Add(k, v)
+		}
+		baseUrl.RawQuery = params.Encode()
+		uri = baseUrl.String()
+	}
+	req, err := http.NewRequest(http.MethodPost, uri, bytes.NewBuffer(body))
 	if err != nil {
 		return result, err
 	}
-
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(dataByte))
-	if err != nil {
-		return result, err
-	}
-	req.Header.Set("Content-Type", "application/json; charset=UTF-8")
-	req.Header.Set("Authorization", "Bearer "+y.IamToken)
+	// req.Header.Set("Content-Type", "application/json; charset=UTF-8")
+	// req.Header.Set("Authorization", "Bearer "+y.IamToken)
+	req.Header.Set("Authorization", "Api-Key "+y.OAuthToken)
 	for _, k := range headers {
 		req.Header.Set(k, headers[k])
 	}
