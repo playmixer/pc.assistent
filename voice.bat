@@ -1,1 +1,0 @@
-mshta vbscript:Execute("CreateObject(""SAPI.SpVoice"").Speak(""%1"")(window.close)")
