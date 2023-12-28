@@ -9,8 +9,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/playmixer/pc.assistent/pkg/listen"
 	"github.com/playmixer/pc.assistent/pkg/player"
 	"github.com/playmixer/pc.assistent/pkg/smarty"
 	"github.com/playmixer/pc.assistent/pkg/yandex"
@@ -28,7 +26,8 @@ import (
 **/
 
 var (
-	log *logger.Logger
+	log       *logger.Logger
+	assistent *smarty.Assiser
 )
 
 type SocketSendEvent struct {
@@ -42,6 +41,26 @@ func MarshalSocketSendEvent(event int) []byte {
 	})
 
 	return res
+}
+
+func LoadCommand() error {
+	log.INFO("Loading command from store...")
+	_cmd, err := Store.Open(Command{}).All()
+	if err != nil {
+		log.ERROR(err.Error())
+		return err
+	}
+	assistent.DeleteAllCommand()
+	for _, v := range _cmd.(map[string]Command) {
+		log.INFO(fmt.Sprintf("\t upload command: %s", v.Commands[0]))
+		assistent.AddGenCommand(smarty.ObjectCommand{
+			Type:     smarty.TypeCommand(v.Type),
+			Path:     v.Path,
+			Args:     v.Args,
+			Commands: v.Commands,
+		})
+	}
+	return nil
 }
 
 func main() {
@@ -74,7 +93,7 @@ func main() {
 	// speach := tts.New(tts.TTSProviderYandex)
 
 	// Asisstent listener
-	assistent := smarty.New(ctx)
+	assistent = smarty.New(ctx)
 	assistent.SetRecognizeCommand(recognizer)
 	assistent.SetRecognizeName(recognizer)
 	assistent.SetConfig(smarty.Config{
@@ -98,30 +117,18 @@ func main() {
 	})
 
 	// Загрузка команд из хранилища
-	log.INFO("Loading command from store...")
-	_cmd, err := Store.Open(StoreCommand{}).All()
-	if err != nil {
-		log.ERROR(err.Error())
-	}
-	for _, v := range _cmd.(map[string]StoreCommand) {
-		log.INFO(fmt.Sprintf("\t upload command: %s", v.Commands[0]))
-		assistent.AddGenCommand(smarty.ObjectCommand{
-			Type:     smarty.TypeCommand(v.Type),
-			Path:     v.Path,
-			Args:     v.Args,
-			Commands: v.Commands,
-		})
-	}
+	LoadCommand()
+
 	// Голосовые команды
-	assistent.AddCommand([]string{"который час", "сколько время"}, func(ctx context.Context, a *smarty.Assiser) {
-		txt := fmt.Sprint("Текущее время:", time.Now().Format("15:04"))
-		a.Print(txt)
-		err := a.Voice(txt)
-		if err != nil {
-			log.ERROR(err.Error())
-		}
-		// log.ERROR(a.Voice(txt).Error())
-	})
+	// assistent.AddCommand([]string{"который час", "сколько время"}, func(ctx context.Context, a *smarty.Assiser) {
+	// 	txt := fmt.Sprint("Текущее время:", time.Now().Format("15:04"))
+	// 	a.Print(txt)
+	// 	err := a.Voice(txt)
+	// 	if err != nil {
+	// 		log.ERROR(err.Error())
+	// 	}
+	// 	// log.ERROR(a.Voice(txt).Error())
+	// })
 	assistent.AddCommand([]string{"отключись", "выключись"}, func(ctx context.Context, a *smarty.Assiser) {
 		a.Print("Отключаюсь")
 		// log.ERROR(a.Voice("Отключаюсь").Error())
@@ -157,18 +164,8 @@ func main() {
 		v0.POST("/command", httpNewCommand)
 		v0.DELETE("/command", httpDeleteCommand)
 		v0.PUT("/command", httpUpdateCommand)
-		v0.GET("/info", func(ctx *gin.Context) {
-
-			result := map[string]interface{}{
-				"names":    assistent.Names,
-				"commands": assistent.GetCommands(),
-				"deviceId": assistent.GetRecorder().DeviceId,
-			}
-
-			result["devices"], _ = listen.GetMicrophons()
-
-			ctx.JSON(200, result)
-		})
+		v0.GET("/info", httpInfo)
+		v0.POST("/refresh", httpRefresh)
 	}
 
 	server.Start()

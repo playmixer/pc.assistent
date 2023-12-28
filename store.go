@@ -18,23 +18,23 @@ const (
 	CTExec CommandType = "exec"
 )
 
-type StoreCommand struct {
+type Command struct {
 	Commands []string    `json:"commands"`
 	Type     CommandType `json:"type"`
 	Path     string      `json:"path"`
 	Args     []string    `json:"args"`
 }
 
-func (command StoreCommand) Init() {
+func (command Command) Init() {
 	Store.InitJsonObject(command)
 }
 
-func (command StoreCommand) ID() string {
+func (command Command) ID() string {
 	return base64.StdEncoding.EncodeToString([]byte(strings.Join(command.Commands, "_")))
 }
 
-func (command StoreCommand) Unmarshal(data []byte) (interface{}, error) {
-	res := make(map[string]StoreCommand)
+func (command Command) Unmarshal(data []byte) (interface{}, error) {
+	res := make(map[string]Command)
 	err := json.Unmarshal(data, &res)
 
 	return res, err
@@ -47,7 +47,7 @@ func StoreInit(name string) (*jdb.Driver, error) {
 		return nil, err
 	}
 
-	StoreCommand{}.Init()
+	Command{}.Init()
 
 	return Store, nil
 }

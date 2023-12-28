@@ -499,6 +499,10 @@ func (a *Assiser) AddGenCommand(data ObjectCommand) {
 	}
 }
 
+func (a *Assiser) DeleteAllCommand() {
+	a.commands = []CommandStruct{}
+}
+
 func IsFindedNameInText(names []string, text string) bool {
 	for _, name := range names {
 		if fuzzy.TokenSetRatio(name, text) == 100 {
