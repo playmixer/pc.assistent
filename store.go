@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	jdb "github.com/playmixer/pc.assistent/pkg/jsonstore"
+	jdb "github.com/playmixer/JsonStore"
 )
 
 var (

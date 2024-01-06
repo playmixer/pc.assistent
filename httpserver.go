@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"sync"
@@ -26,6 +25,9 @@ type Server struct {
 }
 
 func HttpServerNew(port string) *Server {
+	if os.Getenv("HTTP_SERVER_DEBUG") == "0" {
+		gin.SetMode(gin.ReleaseMode)
+	}
 	server := Server{
 		route:   gin.Default(),
 		clients: make(map[*websocket.Conn]bool),
@@ -54,23 +56,6 @@ func (server *Server) Start() *Server {
 	return server
 }
 
-// func (server *Server) index(w http.ResponseWriter, r *http.Request) {
-func (server *Server) index(c *gin.Context) {
-	file, err := os.Open("./web/build/index.html")
-	if err != nil {
-		log.ERROR(err.Error())
-	}
-	b, err := io.ReadAll(file)
-	if err != nil {
-		log.ERROR(err.Error())
-	}
-	_, err = c.Writer.Write(b)
-	if err != nil {
-		log.ERROR(err.Error())
-	}
-}
-
-// func (server *Server) echo(w http.ResponseWriter, r *http.Request) {
 func (server *Server) echo(c *gin.Context) {
 	connection, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {

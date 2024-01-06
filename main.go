@@ -6,24 +6,18 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
-	"github.com/playmixer/pc.assistent/pkg/player"
-	"github.com/playmixer/pc.assistent/pkg/smarty"
-	"github.com/playmixer/pc.assistent/pkg/yandex"
+	"github.com/playmixer/corvid/smarty"
 
-	"github.com/playmixer/pc.assistent/pkg/logger"
-	voskclient "github.com/playmixer/pc.assistent/pkg/vosk-client"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/playmixer/corvid/logger"
+	voskclient "github.com/playmixer/corvid/vosk-client"
 
 	"github.com/joho/godotenv"
 )
-
-/**
- TODO
- - перезагрузка команд
-
-**/
 
 var (
 	log       *logger.Logger
@@ -44,15 +38,15 @@ func MarshalSocketSendEvent(event int) []byte {
 }
 
 func LoadCommand() error {
-	log.INFO("Loading command from store...")
 	_cmd, err := Store.Open(Command{}).All()
 	if err != nil {
 		log.ERROR(err.Error())
 		return err
 	}
 	assistent.DeleteAllCommand()
+	assistent.InitDefaultCommand()
 	for _, v := range _cmd.(map[string]Command) {
-		log.INFO(fmt.Sprintf("\t upload command: %s", v.Commands[0]))
+		log.DEBUG(fmt.Sprintf("\t upload command: %s", v.Commands[0]))
 		assistent.AddGenCommand(smarty.ObjectCommand{
 			Type:     smarty.TypeCommand(v.Type),
 			Path:     v.Path,
@@ -97,43 +91,52 @@ func main() {
 	assistent.SetRecognizeCommand(recognizer)
 	assistent.SetRecognizeName(recognizer)
 	assistent.SetConfig(smarty.Config{
-		Names:         []string{"альфа", "бета", "бэта"},
+		Names:         []string{"альфа"},
 		ListenTimeout: time.Second * 1,
 	})
 	assistent.SetLogger(log)
 
-	// Озвучка текста
-	assistent.SetTTS(func(text string) error {
-		ydx := yandex.New(os.Getenv("YANDEX_API_KEY"), os.Getenv("YANDEX_FOLDER_ID"))
+	bot, err := tgbotapi.NewBotAPI(os.Getenv("TELEGRAM_BOT_API_KEY"))
+	if err != nil {
+		log.ERROR(err.Error())
+		return
+	}
+	_chatId := os.Getenv("TELEGRAM_CHAT_ID")
+	chatId, err := strconv.Atoi(_chatId)
 
-		req := ydx.Speach(text)
-		b, err := req.Post()
+	// ответ
+	assistent.SetTTS(func(ctx context.Context, text string) error {
 		if err != nil {
 			return err
 		}
 
-		player.PlayMp3FromBytes(b)
+		_, err = bot.Send(tgbotapi.NewMessage(int64(chatId), text))
+		if err != nil {
+			return err
+		}
 		return nil
 	})
 
-	// Загрузка команд из хранилища
-	LoadCommand()
+	// Озвучка текста
+	// assistent.SetTTS(func(ctx context.Context, text string) error {
+	// 	var err error
+	// 	var b []byte
+	// 	log.INFO("tts generate from yandex speach api")
+	// 	ydx := yandex.New(os.Getenv("YANDEX_API_KEY"), os.Getenv("YANDEX_FOLDER_ID"))
 
-	// Голосовые команды
-	// assistent.AddCommand([]string{"который час", "сколько время"}, func(ctx context.Context, a *smarty.Assiser) {
-	// 	txt := fmt.Sprint("Текущее время:", time.Now().Format("15:04"))
-	// 	a.Print(txt)
-	// 	err := a.Voice(txt)
+	// 	req := ydx.Speach(text)
+	// 	b, err = req.Post()
 	// 	if err != nil {
-	// 		log.ERROR(err.Error())
+	// 		return err
 	// 	}
-	// 	// log.ERROR(a.Voice(txt).Error())
+
+	// 	player.PlayMp3FromBytes(ctx, b)
+	// 	return nil
 	// })
-	assistent.AddCommand([]string{"отключись", "выключись"}, func(ctx context.Context, a *smarty.Assiser) {
-		a.Print("Отключаюсь")
-		// log.ERROR(a.Voice("Отключаюсь").Error())
-		cancel()
-	})
+
+	// Загрузка команд из хранилища
+	log.INFO("Loading command from store...")
+	LoadCommand()
 
 	assistent.AddCommand([]string{"счет", "счёт"}, func(ctx context.Context, a *smarty.Assiser) {
 		ticker := time.NewTicker(time.Second)
@@ -177,6 +180,7 @@ func main() {
 		for {
 			select {
 			case <-sigs:
+				cancel()
 				break waitEvent
 
 			case <-ctx.Done():
@@ -196,6 +200,12 @@ func main() {
 				}
 
 				server.WriteMessage(MarshalSocketSendEvent(int(e)))
+
+			case said := <-assistent.UserSaid:
+				_, err = bot.Send(tgbotapi.NewMessage(int64(chatId), fmt.Sprintf("Вы сказали:\n- %s", said)))
+				if err != nil {
+					log.ERROR(err.Error())
+				}
 			}
 		}
 	}()
@@ -204,6 +214,6 @@ func main() {
 	assistent.Start()
 
 	log.INFO("Stoping App...")
-	time.Sleep(time.Second * 3)
+	time.Sleep(time.Second * 1)
 	log.INFO("Stop App")
 }

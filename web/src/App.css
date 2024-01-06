@@ -1,3 +1,26 @@
+html {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+body::-webkit-scrollbar {
+  width: 0px;
+}
+
+body::-webkit-scrollbar-track {
+  background-color: rgb(29, 53, 119);
+  border-radius: 100px;
+}
+
+body::-webkit-scrollbar-thumb {
+  background-color: rgb(29, 53, 119);
+  border-radius: 100px;
+}
+
+body {
+  background-color: rgb(29, 53, 119);
+}
+
 .App {
   text-align: center;
   height: 100vh;

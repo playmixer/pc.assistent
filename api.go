@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/playmixer/pc.assistent/pkg/listen"
+	"github.com/playmixer/corvid/listen"
 )
 
 func WSHandle(message []byte) {

@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import LayoutPage from "../../components/layoutPage";
-import { Box, Button, Input, Typography } from "@mui/material";
+import { Box, Button, Input, TextField, Typography } from "@mui/material";
 import * as api from "../../api/api";
 
 const ComponentInput = ({name, value, title, onChange}) => {
@@ -11,6 +11,7 @@ const ComponentInput = ({name, value, title, onChange}) => {
 }
 
 function PageCommands({back}) {
+    const [commands, setCommands] = useState([])
     const [form, setForm] = useState({
         type: "",
         command: "",
@@ -36,13 +37,26 @@ function PageCommands({back}) {
         console.log(res)
     }
 
+    useEffect(() => {
+        api.GetCommands()
+        .then(r => {
+            setCommands(r)
+        })
+
+    }, [])
+
     return <LayoutPage back={back} title={"Commands"}>
-        <Box sx={{display: 'flex', flexDirection: 'column', alignItems:'flex-start'}}>
-            <ComponentInput title={"Command"} name={"command"} onChange={onChangeForm} value={form['command']}/>
-            <ComponentInput title={"Type"} name={"type"} onChange={onChangeForm} value={form['type']}/>
-            <ComponentInput title={"Path"} name={"path"} onChange={onChangeForm} value={form['path']}/>
-            <ComponentInput title={"Args"} name={"args"} onChange={onChangeForm} value={form['args']}/>
-        </Box>
+        {
+            commands.map((command, i) => {
+                return <Box key={i} sx={{display: 'flex', flexDirection: 'column', alignItems:'flex-start', mb: 4}}>
+                    <ComponentInput title={"Command"} name={"command"} onChange={onChangeForm} value={command.commands?.join("; ")}/>
+                    <ComponentInput title={"Type"} name={"type"} onChange={onChangeForm} value={command['type']}/>
+                    <ComponentInput title={"Path"} name={"path"} onChange={onChangeForm} value={command['path']}/>
+                    <ComponentInput title={"Args"} name={"args"} onChange={onChangeForm} value={command['args']}/>
+                </Box>
+            })
+        }
+
         <Button onClick={submitForm}>Добавить</Button>
     </LayoutPage>
 }
