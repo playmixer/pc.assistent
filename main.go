@@ -4,13 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/playmixer/corvid/player"
 	"github.com/playmixer/corvid/smarty"
+	"github.com/playmixer/num2words"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/playmixer/corvid/logger"
@@ -79,12 +85,11 @@ func main() {
 
 	// Распознование речи
 	recognizer := voskclient.New()
+	// recognizer2 := .RecognizeByte()
+
 	rLog := logger.New("recognize")
 	rLog.LogLevel = logger.INFO
 	recognizer.SetLogger(rLog)
-
-	// Озвучка текста
-	// speach := tts.New(tts.TTSProviderYandex)
 
 	// Asisstent listener
 	assistent = smarty.New(ctx)
@@ -104,35 +109,41 @@ func main() {
 	_chatId := os.Getenv("TELEGRAM_CHAT_ID")
 	chatId, err := strconv.Atoi(_chatId)
 
-	// ответ
+	// Озвучка текста
 	assistent.SetTTS(func(ctx context.Context, text string) error {
+		//транслируем ответ в бота
+		_, err = bot.Send(tgbotapi.NewMessage(int64(chatId), fmt.Sprintf("assistent: %s", text)))
+		if err != nil {
+			log.ERROR(err.Error())
+		}
+
+		text = cleanString(text, " ")
+		_text_splited := strings.Split(text, " ")
+		for i, _t := range _text_splited {
+			if isInt(_t) {
+				_text_splited[i] = num2words.Convert(strToInt(_t))
+			}
+		}
+
+		text = strings.Join(_text_splited, " ")
+
+		var err error
+		var b []byte
+		requestURL := fmt.Sprintf("http://%s:%s/tts_to_wav?text=%s", smarty.Getenv("TTS_HOST", "localhost"), smarty.Getenv("TTS_PORT", "8000"), url.QueryEscape(text))
+		res, err := http.Get(requestURL)
+		if err != nil {
+			return err
+		}
+		defer res.Body.Close()
+
+		b, err = io.ReadAll(res.Body)
 		if err != nil {
 			return err
 		}
 
-		_, err = bot.Send(tgbotapi.NewMessage(int64(chatId), text))
-		if err != nil {
-			return err
-		}
+		player.PlayWavFromBytes(ctx, b)
 		return nil
 	})
-
-	// Озвучка текста
-	// assistent.SetTTS(func(ctx context.Context, text string) error {
-	// 	var err error
-	// 	var b []byte
-	// 	log.INFO("tts generate from yandex speach api")
-	// 	ydx := yandex.New(os.Getenv("YANDEX_API_KEY"), os.Getenv("YANDEX_FOLDER_ID"))
-
-	// 	req := ydx.Speach(text)
-	// 	b, err = req.Post()
-	// 	if err != nil {
-	// 		return err
-	// 	}
-
-	// 	player.PlayMp3FromBytes(ctx, b)
-	// 	return nil
-	// })
 
 	// Загрузка команд из хранилища
 	log.INFO("Loading command from store...")
@@ -202,7 +213,7 @@ func main() {
 				server.WriteMessage(MarshalSocketSendEvent(int(e)))
 
 			case said := <-assistent.UserSaid:
-				_, err = bot.Send(tgbotapi.NewMessage(int64(chatId), fmt.Sprintf("Вы сказали:\n- %s", said)))
+				_, err = bot.Send(tgbotapi.NewMessage(int64(chatId), fmt.Sprintf("Вы: %s", said)))
 				if err != nil {
 					log.ERROR(err.Error())
 				}
