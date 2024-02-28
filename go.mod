@@ -9,6 +9,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/playmixer/JsonStore v0.0.1
 	github.com/playmixer/corvid v0.1.3
+	github.com/playmixer/corvid/logger v0.0.0-20240222170141-520f8b89b750
 	github.com/playmixer/num2words v0.0.0-20240222171844-1c0c905f0188
 )
 
@@ -44,7 +45,6 @@ require (
 	github.com/paul-mannino/go-fuzzywuzzy v0.0.0-20200127021948-54652b135d0e // indirect
 	github.com/pelletier/go-toml/v2 v2.0.8 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/playmixer/corvid/logger v0.0.0-20240222170141-520f8b89b750 // indirect
 	github.com/satori/go.uuid v1.2.0 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/tuya/pulsar-client-go v0.0.0-20210318030624-2c99a816287b // indirect

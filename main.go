@@ -17,6 +17,7 @@ import (
 	"github.com/playmixer/corvid/player"
 	"github.com/playmixer/corvid/smarty"
 	"github.com/playmixer/num2words"
+	"github.com/playmixer/pc.assistent/functions"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/playmixer/corvid/logger"
@@ -117,11 +118,11 @@ func main() {
 			log.ERROR(err.Error())
 		}
 
-		text = cleanString(text, " ")
+		text = functions.CleanString(text, " ")
 		_text_splited := strings.Split(text, " ")
 		for i, _t := range _text_splited {
-			if isInt(_t) {
-				_text_splited[i] = num2words.Convert(strToInt(_t))
+			if functions.IsInt(_t) {
+				_text_splited[i] = num2words.Convert(functions.StrToInt(_t))
 			}
 		}
 
