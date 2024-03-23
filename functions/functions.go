@@ -13,7 +13,9 @@ func CleanString(text string, d string) string {
 }
 
 func IsInt(text string) bool {
-	text = strings.TrimLeft(text, "0")
+	if len(text) > 1 {
+		text = strings.TrimLeft(text, "0")
+	}
 	_, err := strconv.ParseInt(text, 0, 10)
 	return err == nil
 }
